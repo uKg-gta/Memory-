@@ -1,0 +1,2539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#F4EFE5" />
+  <meta name="description" content="A personal, offline-first notes space." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon-192.png" type="image/png" />
+  <title>Memory — Personal Notes</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-main: #F4EFE5;
+      --bg-surface: #E5DDCB;
+      --bg-elevated: #FAF7F1;
+      --text-main: #493F32;
+      --text-muted: #7A6E5D;
+      --accent-olive: #778267;
+      --accent-olive-hover: #677258;
+      --accent-clay: #B77C60;
+      --accent-sand: #D8BFA5;
+      --border-muted: rgba(73, 63, 50, 0.14);
+      --border-strong: rgba(73, 63, 50, 0.24);
+      --shadow-card: 0 1px 3px rgba(73, 63, 50, 0.06), 0 1px 2px rgba(73, 63, 50, 0.04);
+      --shadow-modal: 0 18px 40px rgba(41, 43, 37, 0.16);
+
+      /* Approved 5 muted note colours (Light) */
+      --note-paper: #FAF7F0;
+      --note-oatmeal: #E5DDCB;
+      --note-sand: #E6D5C3;
+      --note-olive: #DCE1D4;
+      --note-clay: #E8D2C6;
+    }
+
+    html.dark {
+      --bg-main: #292B25;
+      --bg-surface: #32352D;
+      --bg-elevated: #363930;
+      --text-main: #ECE7DC;
+      --text-muted: #A9A294;
+      --accent-olive: #8A9679;
+      --accent-olive-hover: #9AA689;
+      --accent-clay: #C88C70;
+      --accent-sand: #8C7761;
+      --border-muted: rgba(236, 231, 220, 0.11);
+      --border-strong: rgba(236, 231, 220, 0.22);
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.22);
+      --shadow-modal: 0 20px 48px rgba(0, 0, 0, 0.45);
+
+      /* Approved 5 muted note colours (Dark) */
+      --note-paper: #34372F;
+      --note-oatmeal: #3E3D34;
+      --note-sand: #463D33;
+      --note-olive: #353E30;
+      --note-clay: #47362F;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .bg-main { background-color: var(--bg-main); }
+    .bg-surface { background-color: var(--bg-surface); }
+    .bg-elevated { background-color: var(--bg-elevated); }
+    .text-main { color: var(--text-main); }
+    .text-muted { color: var(--text-muted); }
+    .border-muted { border-color: var(--border-muted); }
+    .border-strong { border-color: var(--border-strong); }
+
+    .note-bg-paper { background-color: var(--note-paper); }
+    .note-bg-oatmeal { background-color: var(--note-oatmeal); }
+    .note-bg-sand { background-color: var(--note-sand); }
+    .note-bg-olive { background-color: var(--note-olive); }
+    .note-bg-clay { background-color: var(--note-clay); }
+
+    .label-card { border-radius: 16px; border: 1px solid var(--border-muted); box-shadow: var(--shadow-card); }
+    .label-swatch { width: 17px; height: 17px; border-radius: 999px; border: 2px solid rgba(255,255,255,.75); box-shadow: 0 0 0 1px var(--border-muted); }
+    .label-card-actions button { min-width: 27px; min-height: 27px; }
+    .note-card {
+      height: 112px;
+      border-radius: 14px;
+      border: 1px solid var(--border-muted);
+      box-shadow: var(--shadow-card);
+      transition: border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .note-card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .note-card.is-selected {
+      border-color: var(--accent-olive);
+      box-shadow: 0 0 0 2px var(--accent-olive);
+    }
+
+    .note-card.is-dragging {
+      opacity: 0.45;
+    }
+
+    .note-card.drag-over {
+      border-color: var(--accent-olive);
+      box-shadow: 0 0 0 2px var(--accent-olive);
+    }
+
+    .drag-handle {
+      cursor: grab;
+      touch-action: none;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .btn-olive {
+      background-color: var(--accent-olive);
+      color: #FAF7F0;
+    }
+    .btn-olive:hover {
+      background-color: var(--accent-olive-hover);
+    }
+
+    .nav-item.active {
+      background-color: var(--bg-surface);
+      font-weight: 500;
+    }
+
+    .editor-content {
+      outline: none;
+      min-height: 200px;
+      line-height: 1.65;
+    }
+    .editor-content:empty::before {
+      content: attr(data-placeholder);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .editor-content ul {
+      list-style-type: disc;
+      padding-left: 1.35rem;
+      margin: 0.4rem 0;
+    }
+    .editor-content ol {
+      list-style-type: decimal;
+      padding-left: 1.35rem;
+      margin: 0.4rem 0;
+    }
+
+    .checklist-row input[type="checkbox"] {
+      accent-color: var(--accent-olive);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .checklist-done {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+
+    /* Subtle custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-main text-main">
+  <div id="app" class="min-h-screen flex">
+    <!-- Desktop Persistent Sidebar (No redundant hamburger on desktop) -->
+    <aside class="hidden md:flex md:flex-col w-60 shrink-0 border-r border-muted bg-main sticky top-0 h-screen px-3 py-4">
+      <div class="flex items-center gap-2.5 px-3 pb-4 mb-2">
+        <span class="w-7 h-7 rounded-lg flex items-center justify-center" style="background-color: var(--accent-olive); color: #FAF7F0;">
+          <i data-lucide="book-marked" class="w-4 h-4"></i>
+        </span>
+        <span class="text-lg font-semibold tracking-tight">Memory</span>
+      </div>
+      <nav id="desktop-nav" class="flex-1 overflow-y-auto space-y-0.5 text-sm"></nav>
+    </aside>
+
+    <!-- Mobile Slide-Out Navigation Drawer -->
+    <div id="mobile-drawer-backdrop" class="fixed inset-0 z-40 bg-black/35 hidden md:hidden" aria-hidden="true"></div>
+    <aside id="mobile-drawer" class="fixed inset-y-0 left-0 z-50 w-68 max-w-[82vw] bg-main border-r border-muted transform -translate-x-full transition-transform duration-200 flex flex-col px-3 py-4 md:hidden">
+      <div class="flex items-center justify-between px-3 pb-4 mb-2">
+        <div class="flex items-center gap-2.5">
+          <span class="w-7 h-7 rounded-lg flex items-center justify-center" style="background-color: var(--accent-olive); color: #FAF7F0;">
+            <i data-lucide="book-marked" class="w-4 h-4"></i>
+          </span>
+          <span class="text-lg font-semibold tracking-tight">Memory</span>
+        </div>
+        <button id="close-drawer-btn" type="button" class="p-2 rounded-lg hover:bg-surface text-muted" aria-label="Close navigation">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <nav id="mobile-nav" class="flex-1 overflow-y-auto space-y-0.5 text-sm"></nav>
+    </aside>
+
+    <!-- Main Content Column -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Compact Top Header -->
+      <header class="sticky top-0 z-30 bg-main/95 backdrop-blur border-b border-muted px-4 md:px-6 h-14 flex items-center gap-3">
+        <!-- Mobile-only hamburger + brand -->
+        <button id="open-drawer-btn" type="button" class="md:hidden p-2 -ml-2 rounded-lg hover:bg-surface text-main" aria-label="Open menu">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+        <span class="md:hidden font-semibold text-base tracking-tight mr-1">Memory</span>
+
+        <!-- Prominent Search Input -->
+        <div class="flex-1 max-w-xl relative">
+          <i data-lucide="search" class="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Search your notes"
+            class="w-full h-9 pl-9 pr-8 rounded-xl bg-elevated border border-muted text-sm text-main placeholder:text-muted focus:outline-none focus:border-strong"
+          />
+          <button id="clear-search-btn" type="button" class="hidden absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted hover:text-main" aria-label="Clear search">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <!-- Theme Switch -->
+        <button id="theme-toggle-btn" type="button" class="p-2 rounded-xl border border-muted bg-elevated hover:bg-surface text-main shrink-0" aria-label="Toggle light or dark mode" title="Switch theme">
+          <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
+        </button>
+      </header>
+
+      <!-- Workspace Area -->
+      <main id="main-content" class="flex-1 px-4 md:px-8 py-5 pb-28 max-w-6xl w-full mx-auto">
+        <!-- Rendered dynamically -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Multi-Select Bottom Bulk-Action Toolbar -->
+  <div id="bulk-toolbar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-xl">
+    <!-- Bulk Colour Popover -->
+    <div id="bulk-colour-popover" class="hidden mb-2 mx-auto w-fit px-3 py-2 rounded-2xl bg-elevated border border-muted shadow-lg flex items-center gap-2.5">
+      <span class="text-xs text-muted mr-1">Note colour</span>
+      <div id="bulk-colour-swatches" class="flex items-center gap-2"></div>
+    </div>
+
+    <div class="rounded-2xl bg-elevated border border-strong px-3.5 py-2.5 flex items-center justify-between gap-2" style="box-shadow: var(--shadow-modal);">
+      <div class="flex items-center gap-2">
+        <button id="bulk-exit-btn" type="button" class="p-1.5 rounded-lg hover:bg-surface text-muted" aria-label="Exit selection mode" title="Cancel selection">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+        <span id="bulk-count" class="text-sm font-medium whitespace-nowrap">0 selected</span>
+      </div>
+
+      <div id="bulk-actions-container" class="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
+        <!-- Populated per view (Active vs Archive vs Trash) -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Note Editor Modal (Full-screen on mobile, centred pop-up on tablet & desktop) -->
+  <div id="editor-overlay" class="hidden fixed inset-0 z-50 bg-black/40 md:p-6 flex items-center justify-center">
+    <div id="editor-panel" class="w-full h-full md:h-auto md:max-h-[86vh] md:max-w-2xl md:rounded-2xl border-0 md:border border-muted flex flex-col overflow-hidden transition-colors duration-150" style="box-shadow: var(--shadow-modal);">
+      <!-- Editor Top Status Strip (minimal, uncluttered) -->
+      <div class="px-4 md:px-6 pt-3.5 pb-1 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span id="editor-pinned-badge" class="hidden inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-muted">
+            <i data-lucide="pin" class="w-3 h-3"></i> Pinned
+          </span>
+          <span id="editor-folder-pill" class="hidden inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-muted truncate"></span>
+          <span id="editor-save-status" class="text-xs text-muted">Saved on this device</span>
+          <span id="editor-created-date" class="text-[11px] text-muted ml-1"></span>
+        </div>
+        <div id="editor-label-pills" class="flex items-center gap-1 overflow-x-auto"></div>
+      </div>
+
+      <!-- Optional Formatting Bar (hidden until More > Text formatting is toggled) -->
+      <div id="formatting-bar" class="hidden mx-4 md:mx-6 mt-2 px-2.5 py-1.5 rounded-xl bg-black/5 dark:bg-white/5 border border-muted flex items-center flex-wrap gap-1">
+        <button type="button" data-fmt="bold" class="fmt-btn px-2 py-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold" title="Bold">B</button>
+        <button type="button" data-fmt="italic" class="fmt-btn px-2 py-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-xs italic" title="Italic">I</button>
+        <button type="button" data-fmt="underline" class="fmt-btn px-2 py-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-xs underline" title="Underline">U</button>
+        <span class="w-px h-4 bg-current opacity-15 mx-1"></span>
+        <button type="button" data-fmt="insertUnorderedList" class="fmt-btn p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10" title="Bulleted list">
+          <i data-lucide="list" class="w-3.5 h-3.5"></i>
+        </button>
+        <button type="button" data-fmt="insertOrderedList" class="fmt-btn p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10" title="Numbered list">
+          <i data-lucide="list-ordered" class="w-3.5 h-3.5"></i>
+        </button>
+        <button type="button" id="add-checklist-item-btn" class="px-2 py-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-xs inline-flex items-center gap-1" title="Add checklist item">
+          <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Checklist
+        </button>
+      </div>
+
+      <!-- Scrollable Writing Area -->
+      <div class="flex-1 overflow-y-auto px-4 md:px-6 py-3 space-y-4">
+        <input
+          id="editor-title"
+          type="text"
+          placeholder="Title (optional)"
+          class="w-full bg-transparent text-lg md:text-xl font-semibold text-main placeholder:text-muted/70 focus:outline-none"
+        />
+
+        <!-- Rich Text Body -->
+        <div
+          id="editor-body"
+          contenteditable="true"
+          data-placeholder="Start writing…"
+          class="editor-content text-sm md:text-[15px] text-main"
+        ></div>
+
+        <!-- Checklist Section (Completed items stay in place with strikethrough) -->
+        <div id="editor-checklist-section" class="hidden space-y-1.5 pt-1">
+          <div id="editor-checklist-items" class="space-y-1.5"></div>
+          <button id="inline-add-check-btn" type="button" class="text-xs text-muted hover:text-main inline-flex items-center gap-1.5 py-1">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add checklist item
+          </button>
+        </div>
+
+        <!-- Compact Link Cards Section -->
+        <div id="editor-links-section" class="hidden space-y-2 pt-2">
+          <div class="text-[11px] uppercase tracking-wider text-muted font-medium">Links</div>
+          <div id="editor-links-list" class="space-y-1.5"></div>
+        </div>
+
+        <!-- Compact Attachment Rows Section (all types incl. images — no large previews) -->
+        <div id="editor-attachments-section" class="hidden space-y-2 pt-2">
+          <div class="text-[11px] uppercase tracking-wider text-muted font-medium">Attachments</div>
+          <div id="editor-attachments-list" class="space-y-1.5"></div>
+        </div>
+      </div>
+
+      <!-- Add Link Inline Popover -->
+      <div id="add-link-bar" class="hidden px-4 md:px-6 py-3 border-t border-muted bg-black/[0.03] dark:bg-white/[0.03]">
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="link-url-input" type="url" placeholder="https://example.com" class="flex-1 h-9 px-3 rounded-lg bg-elevated border border-muted text-sm text-main placeholder:text-muted focus:outline-none focus:border-strong" />
+          <input id="link-title-input" type="text" placeholder="Title override (optional)" class="flex-1 h-9 px-3 rounded-lg bg-elevated border border-muted text-sm text-main placeholder:text-muted focus:outline-none focus:border-strong" />
+          <div class="flex items-center gap-1.5">
+            <button id="save-link-btn" type="button" class="h-9 px-3 rounded-lg btn-olive text-xs font-medium">Add</button>
+            <button id="cancel-link-btn" type="button" class="h-9 px-2.5 rounded-lg border border-muted text-xs text-muted hover:text-main">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Minimal Approved Editor Toolbar: Attachment | Add link | More | Done -->
+      <div class="relative px-4 md:px-6 py-3 border-t border-muted flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1">
+          <input id="attachment-file-input" type="file" multiple class="hidden" />
+          <button id="editor-attach-btn" type="button" class="px-2.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-sm text-main inline-flex items-center gap-1.5" title="Attach file">
+            <i data-lucide="paperclip" class="w-4 h-4"></i>
+            <span class="hidden sm:inline text-xs font-medium">Attachment</span>
+          </button>
+
+          <button id="editor-link-btn" type="button" class="px-2.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-sm text-main inline-flex items-center gap-1.5" title="Add website link">
+            <i data-lucide="link-2" class="w-4 h-4"></i>
+            <span class="hidden sm:inline text-xs font-medium">Add link</span>
+          </button>
+
+          <div class="relative">
+            <button id="editor-more-btn" type="button" class="px-2.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-sm text-main inline-flex items-center gap-1.5" title="More options">
+              <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+              <span class="hidden sm:inline text-xs font-medium">More</span>
+            </button>
+
+            <!-- More Options Menu -->
+            <div id="editor-more-menu" class="hidden absolute bottom-12 left-0 w-64 rounded-2xl bg-elevated border border-muted p-2 z-50 space-y-1 text-sm" style="box-shadow: var(--shadow-modal);">
+              <!-- Note colour swatches -->
+              <div class="px-2.5 py-1.5">
+                <div class="text-[11px] text-muted mb-1.5">Note colour</div>
+                <div id="editor-colour-swatches" class="flex items-center gap-2"></div>
+              </div>
+              <div class="border-t border-muted my-1"></div>
+
+              <button id="more-pin-btn" type="button" class="w-full px-2.5 py-1.5 rounded-lg hover:bg-surface flex items-center gap-2.5 text-left text-xs">
+                <i data-lucide="pin" class="w-3.5 h-3.5 text-muted"></i>
+                <span id="more-pin-label">Pin note</span>
+              </button>
+              <button id="more-format-btn" type="button" class="w-full px-2.5 py-1.5 rounded-lg hover:bg-surface flex items-center justify-between text-left text-xs">
+                <span class="flex items-center gap-2.5">
+                  <i data-lucide="type" class="w-3.5 h-3.5 text-muted"></i>
+                  <span>Text formatting</span>
+                </span>
+                <span id="more-format-state" class="text-[11px] text-muted">Off</span>
+              </button>
+              <button id="more-duplicate-btn" type="button" class="w-full px-2.5 py-1.5 rounded-lg hover:bg-surface flex items-center gap-2.5 text-left text-xs">
+                <i data-lucide="copy" class="w-3.5 h-3.5 text-muted"></i>
+                <span>Duplicate</span>
+              </button>
+
+              <!-- Folder & Labels assignment -->
+              <div class="border-t border-muted my-1"></div>
+              <div class="px-2.5 py-1">
+                <label for="editor-folder-select" class="block text-[11px] text-muted mb-1">Folder</label>
+                <select id="editor-folder-select" class="w-full h-8 px-2 rounded-lg bg-main border border-muted text-xs text-main focus:outline-none"></select>
+              </div>
+              <div class="px-2.5 py-1">
+                <div class="text-[11px] text-muted mb-1">Labels</div>
+                <div id="editor-labels-checklist" class="flex flex-wrap gap-1"></div>
+              </div>
+
+              <div class="border-t border-muted my-1"></div>
+              <button id="more-archive-btn" type="button" class="w-full px-2.5 py-1.5 rounded-lg hover:bg-surface flex items-center gap-2.5 text-left text-xs">
+                <i data-lucide="archive" class="w-3.5 h-3.5 text-muted"></i>
+                <span id="more-archive-label">Archive</span>
+              </button>
+              <button id="more-delete-btn" type="button" class="w-full px-2.5 py-1.5 rounded-lg hover:bg-surface flex items-center gap-2.5 text-left text-xs" style="color: var(--accent-clay);">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <span id="more-delete-label">Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button id="editor-done-btn" type="button" class="px-4 py-2 rounded-xl btn-olive text-xs font-medium">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation & Move-to-Folder Dialog -->
+  <div id="confirm-overlay" class="hidden fixed inset-0 z-[60] bg-black/45 p-4 flex items-center justify-center">
+    <div class="w-full max-w-sm rounded-2xl bg-elevated border border-muted p-5 space-y-4" style="box-shadow: var(--shadow-modal);">
+      <div class="space-y-1.5">
+        <h3 id="confirm-title" class="text-base font-semibold text-main">Confirm action</h3>
+        <p id="confirm-message" class="text-sm text-muted leading-relaxed"></p>
+      </div>
+      <div id="confirm-extra" class="hidden"></div>
+      <div class="flex items-center justify-end gap-2 pt-1">
+        <button id="confirm-cancel-btn" type="button" class="px-3.5 py-2 rounded-xl border border-muted text-xs font-medium text-main hover:bg-surface">
+          Cancel
+        </button>
+        <button id="confirm-ok-btn" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-app attachment preview -->
+  <div id="file-preview-overlay" class="hidden fixed inset-0 z-[65] bg-black/55 p-3 md:p-6 flex items-center justify-center">
+    <div class="w-full max-w-4xl h-[88vh] rounded-2xl bg-elevated border border-muted flex flex-col overflow-hidden" style="box-shadow: var(--shadow-modal);">
+      <div class="px-4 py-3 border-b border-muted flex items-center gap-3">
+        <div id="file-preview-title" class="text-sm font-medium truncate flex-1">Attachment preview</div>
+        <a id="file-preview-download" class="px-3 py-1.5 rounded-lg border border-muted text-xs hover:bg-surface" download>Download</a>
+        <a id="file-preview-external" class="px-3 py-1.5 rounded-lg border border-muted text-xs hover:bg-surface" target="_blank" rel="noopener noreferrer">Open externally</a>
+        <button id="file-preview-close" type="button" class="p-2 rounded-lg hover:bg-surface text-muted" aria-label="Close preview"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <div id="file-preview-body" class="flex-1 min-h-0 bg-black/[0.025] dark:bg-black/20 flex items-center justify-center overflow-auto"></div>
+    </div>
+  </div>
+
+  <!-- Subtle Toast Notification -->
+  <div id="toast" class="hidden fixed top-16 right-4 z-[70] px-3.5 py-2 rounded-xl bg-elevated border border-strong text-xs font-medium text-main" style="box-shadow: var(--shadow-card);"></div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'memory_app_prototype_v6';
+
+      const NOTE_COLOURS = [
+        { id: 'paper', label: 'Warm paper', cls: 'note-bg-paper', swatchLight: '#FAF7F0', swatchDark: '#34372F' },
+        { id: 'oatmeal', label: 'Oatmeal', cls: 'note-bg-oatmeal', swatchLight: '#E5DDCB', swatchDark: '#3E3D34' },
+        { id: 'sand', label: 'Soft sand', cls: 'note-bg-sand', swatchLight: '#E6D5C3', swatchDark: '#463D33' },
+        { id: 'olive', label: 'Muted olive', cls: 'note-bg-olive', swatchLight: '#DCE1D4', swatchDark: '#353E30' },
+        { id: 'clay', label: 'Muted clay', cls: 'note-bg-clay', swatchLight: '#E8D2C6', swatchDark: '#47362F' }
+      ];
+
+      const LABEL_COLOURS = [
+        { id: 'olive', label: 'Olive', swatch: '#879477', light: '#E6EBDD', dark: '#3D4937' },
+        { id: 'navy', label: 'Navy', swatch: '#788BA0', light: '#E3E9EF', dark: '#3A4653' },
+        { id: 'rust', label: 'Rust', swatch: '#B17A64', light: '#F0E3DC', dark: '#4B392F' },
+        { id: 'pink', label: 'Pink', swatch: '#BD929A', light: '#F1E5E7', dark: '#4A3B3F' },
+        { id: 'grey', label: 'Grey', swatch: '#92958F', light: '#E9EAE7', dark: '#41443F' }
+      ];
+
+      function getDefaultData() {
+        return {
+          theme: 'light',
+          folders: [
+            { id: 'f-personal', name: 'Personal' },
+            { id: 'f-projects', name: 'Projects' },
+            { id: 'f-references', name: 'References' }
+          ],
+          labels: [
+            { id: 'l-ideas', name: 'Ideas', colour: 'olive' },
+            { id: 'l-dates', name: 'Dates', colour: 'navy' },
+            { id: 'l-reading', name: 'Reading', colour: 'rust' },
+            { id: 'l-checklists', name: 'Checklists', colour: 'pink' }
+          ],
+          notes: [
+            {
+              id: 'n-1',
+              title: 'Important reference',
+              bodyHtml: 'Passport renewal window opens in March. Keep scanned copies in the local backup folder.',
+              checklist: [],
+              attachments: [],
+              links: [
+                { id: 'lk-1', title: 'Passport Seva Portal', url: 'https://passportindia.gov.in', domain: 'passportindia.gov.in' }
+              ],
+              colour: 'paper',
+              pinned: true,
+              order: 1,
+              folderId: 'f-personal',
+              labelIds: ['l-dates'],
+              archived: false,
+              trashed: false,
+              createdAt: 1731500000000
+            },
+            {
+              id: 'n-2',
+              title: 'Ideas to revisit',
+              bodyHtml: '<ul><li>Offline-first reading list sync</li><li>Minimal weekend itinerary template</li><li>Quick expense split calculator</li></ul>',
+              checklist: [],
+              attachments: [],
+              links: [],
+              colour: 'olive',
+              pinned: true,
+              order: 2,
+              folderId: 'f-projects',
+              labelIds: ['l-ideas'],
+              archived: false,
+              trashed: false,
+              createdAt: 1731510000000
+            },
+            {
+              id: 'n-3',
+              title: '',
+              bodyHtml: 'Quick calculation: 14,500 × 12 = 174,000 annual estimate. Double-check utility split next Tuesday.',
+              checklist: [],
+              attachments: [],
+              links: [],
+              colour: 'oatmeal',
+              pinned: false,
+              order: 3,
+              folderId: '',
+              labelIds: [],
+              archived: false,
+              trashed: false,
+              createdAt: 1731520000000
+            },
+            {
+              id: 'n-4',
+              title: 'Things to remember',
+              bodyHtml: 'Keep completed items in their original positions with strikethrough.',
+              checklist: [
+                { id: 'c-1', text: 'Read the document', done: false },
+                { id: 'c-2', text: 'Buy stationery', done: true },
+                { id: 'c-3', text: 'Save the reference link', done: false }
+              ],
+              attachments: [],
+              links: [
+                { id: 'lk-2', title: 'Reference website', url: 'https://example.com', domain: 'example.com' }
+              ],
+              colour: 'sand',
+              pinned: false,
+              order: 4,
+              folderId: 'f-personal',
+              labelIds: ['l-checklists'],
+              archived: false,
+              trashed: false,
+              createdAt: 1731530000000
+            },
+            {
+              id: 'n-5',
+              title: 'Modern Hearth colour notes & palette tokens',
+              bodyHtml: 'Warm paper #F4EFE5, Walnut #493F32, Olive #778267, Oatmeal #E5DDCB, Sand #D8BFA5, Clay #B77C60. Dark background #292B25.',
+              checklist: [],
+              attachments: [],
+              links: [],
+              colour: 'clay',
+              pinned: false,
+              order: 5,
+              folderId: 'f-projects',
+              labelIds: ['l-reading'],
+              archived: false,
+              trashed: false,
+              createdAt: 1731540000000
+            },
+            {
+              id: 'n-6',
+              title: 'Useful reference',
+              bodyHtml: 'Local libraries, bookshop hours, and neighbourhood contacts worth keeping handy.',
+              checklist: [],
+              attachments: [],
+              links: [],
+              colour: 'paper',
+              pinned: false,
+              order: 6,
+              folderId: 'f-references',
+              labelIds: ['l-reading'],
+              archived: false,
+              trashed: false,
+              createdAt: 1731550000000
+            },
+            {
+              id: 'n-7',
+              title: 'Old apartment lease details',
+              bodyHtml: 'Security deposit returned in full. Meter reading photo stored in archive.',
+              checklist: [],
+              attachments: [],
+              links: [],
+              colour: 'oatmeal',
+              pinned: false,
+              order: 7,
+              folderId: 'f-personal',
+              labelIds: [],
+              archived: true,
+              trashed: false,
+              createdAt: 1731400000000
+            },
+            {
+              id: 'n-8',
+              title: 'Temporary grocery scratchpad',
+              bodyHtml: 'Oats, coffee beans, almonds.',
+              checklist: [],
+              attachments: [],
+              links: [],
+              colour: 'paper',
+              pinned: false,
+              order: 8,
+              folderId: '',
+              labelIds: [],
+              archived: false,
+              trashed: true,
+              createdAt: 1731390000000
+            }
+          ]
+        };
+      }
+
+      // IndexedDB is the primary local database. A one-time legacy localStorage
+      // migration keeps data from the earlier prototype available.
+      const DB_NAME = 'MemoryPersonalNotes';
+      const DB_VERSION = 1;
+      const DB_STORE = 'appState';
+      let dbPromise = null;
+      let persistenceQueue = Promise.resolve();
+
+      function openDatabase() {
+        if (dbPromise) return dbPromise;
+        dbPromise = new Promise((resolve, reject) => {
+          if (!('indexedDB' in window)) {
+            reject(new Error('IndexedDB is unavailable in this browser context.'));
+            return;
+          }
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+          request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE, { keyPath: 'key' });
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error('Could not open local database.'));
+          request.onblocked = () => reject(new Error('The local database is blocked by another open Memory tab.'));
+        });
+        return dbPromise;
+      }
+
+      function cloneData(value) {
+        if (typeof structuredClone === 'function') return structuredClone(value);
+        // Older-browser fallback. Blob attachments require structuredClone support.
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function normalizeState(data) {
+        data.theme = data.theme === 'dark' ? 'dark' : 'light';
+        data.folders = Array.isArray(data.folders) ? data.folders : [];
+        data.labels = Array.isArray(data.labels) ? data.labels : [];
+        data.labels.forEach(label => { if (!label.colour) label.colour = 'olive'; });
+        data.notes = Array.isArray(data.notes) ? data.notes : [];
+        data.notes.forEach(note => {
+          note.folderId = note.folderId || '';
+          note.labelIds = Array.isArray(note.labelIds) ? note.labelIds : [];
+          note.attachments = Array.isArray(note.attachments) ? note.attachments : [];
+          note.links = Array.isArray(note.links) ? note.links : [];
+          note.checklist = Array.isArray(note.checklist) ? note.checklist : [];
+          if (!note.createdAt) note.createdAt = Date.now();
+        });
+        return data;
+      }
+
+      async function readDatabaseState() {
+        const db = await openDatabase();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, 'readonly');
+          const request = tx.objectStore(DB_STORE).get('primary');
+          request.onsuccess = () => resolve(request.result ? request.result.value : null);
+          request.onerror = () => reject(request.error || new Error('Could not read local data.'));
+        });
+      }
+
+      function saveState() {
+        let snapshot;
+        try { snapshot = cloneData(state); }
+        catch (error) {
+          console.error('Could not prepare data for IndexedDB:', error);
+          showToast('Could not prepare local data for saving');
+          return Promise.resolve(false);
+        }
+        persistenceQueue = persistenceQueue.catch(() => {}).then(async () => {
+          const db = await openDatabase();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, 'readwrite');
+            tx.objectStore(DB_STORE).put({ key: 'primary', value: snapshot, updatedAt: Date.now() });
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error || new Error('Could not save local data.'));
+            tx.onabort = () => reject(tx.error || new Error('Local save was interrupted.'));
+          });
+          return true;
+        }).catch(error => {
+          console.error('IndexedDB save failed:', error);
+          showToast('Local save failed. Check browser storage permissions.');
+          return false;
+        });
+        return persistenceQueue;
+      }
+
+      async function initializeStorage() {
+        try {
+          const stored = await readDatabaseState();
+          if (stored && Array.isArray(stored.notes)) {
+            state = normalizeState(stored);
+            return;
+          }
+          // One-time import from the previous localStorage prototype, if present.
+          let legacy = null;
+          try {
+            const raw = localStorage.getItem('memory_app_prototype_v6');
+            if (raw) legacy = JSON.parse(raw);
+          } catch (_) { /* Ignore malformed legacy data. */ }
+          state = normalizeState(legacy && Array.isArray(legacy.notes) ? legacy : getDefaultData());
+          await saveState();
+          try { localStorage.removeItem('memory_app_prototype_v6'); } catch (_) {}
+        } catch (error) {
+          console.error(error);
+          state = normalizeState(getDefaultData());
+          showToast('Local database unavailable. Memory is running in temporary mode.');
+        }
+      }
+
+      let state = normalizeState(getDefaultData());
+      let currentView = 'home'; // home | all | folders | labels | archive | trash | settings
+      let activeFolderId = null;
+      let activeLabelId = null;
+      let searchQuery = '';
+
+      // Multi-select state
+      let selectionMode = false;
+      let selectedIds = new Set();
+
+      // Editor state
+      let editingNoteId = null; // null when closed, 'NEW' or note.id when open
+      let editorDraft = null;
+      let formattingBarOpen = false;
+      let autoSaveTimer = null;
+
+      // Drag state
+      let draggingNoteId = null;
+      let allowDragFromHandle = false;
+
+      // Toast timer
+      let toastTimer = null;
+
+      function uid(prefix) {
+        return prefix + '-' + Math.random().toString(36).slice(2, 9);
+      }
+
+      function showToast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.add('hidden'), 2400);
+      }
+
+      function applyTheme() {
+        const isDark = state.theme === 'dark';
+        document.documentElement.classList.toggle('dark', isDark);
+        const icon = document.getElementById('theme-icon');
+        if (icon) {
+          icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+        }
+        refreshIcons();
+      }
+
+      function refreshIcons() {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }
+
+      function getColourClass(colourId) {
+        const found = NOTE_COLOURS.find(c => c.id === colourId);
+        return found ? found.cls : 'note-bg-paper';
+      }
+
+      function stripHtml(html) {
+        const div = document.createElement('div');
+        div.innerHTML = html || '';
+        return (div.textContent || div.innerText || '').trim();
+      }
+
+      function formatFileSize(bytes) {
+        if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
+        if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      }
+
+      function extractDomain(url) {
+        try {
+          const parsed = new URL(url.startsWith('http') ? url : 'https://' + url);
+          return parsed.hostname.replace(/^www\./, '');
+        } catch (e) {
+          return url;
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // --- NAVIGATION ---
+      function renderNav() {
+        const counts = {
+          home: state.notes.filter(n => !n.archived && !n.trashed).length,
+          archive: state.notes.filter(n => n.archived && !n.trashed).length,
+          trash: state.notes.filter(n => n.trashed).length
+        };
+
+        const items = [
+          { id: 'home', label: 'Home', icon: 'home', count: counts.home },
+          { id: 'all', label: 'All notes', icon: 'layers', count: counts.home },
+          { id: 'folders', label: 'Folders', icon: 'folder', count: state.folders.length },
+          { id: 'labels', label: 'Labels', icon: 'tag', count: state.labels.length },
+          { id: 'archive', label: 'Archive', icon: 'archive', count: counts.archive },
+          { id: 'trash', label: 'Trash', icon: 'trash-2', count: counts.trash },
+          { id: 'settings', label: 'Settings', icon: 'settings', count: null }
+        ];
+
+        const html = items.map(item => {
+          const isActive = currentView === item.id;
+          return `
+            <button type="button" data-nav="${item.id}" class="nav-item ${isActive ? 'active' : ''} w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-main hover:bg-surface/70 transition-colors">
+              <span class="flex items-center gap-3">
+                <i data-lucide="${item.icon}" class="w-4 h-4 text-muted"></i>
+                <span>${item.label}</span>
+              </span>
+              ${item.count !== null ? `<span class="text-xs text-muted">${item.count}</span>` : ''}
+            </button>
+          `;
+        }).join('');
+
+        document.getElementById('desktop-nav').innerHTML = html;
+        document.getElementById('mobile-nav').innerHTML = html;
+
+        document.querySelectorAll('[data-nav]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-nav');
+            exitSelectionMode();
+            currentView = target;
+            if (target !== 'folders') activeFolderId = null;
+            if (target !== 'labels') activeLabelId = null;
+            closeMobileDrawer();
+            renderAll();
+          });
+        });
+      }
+
+      function openMobileDrawer() {
+        document.getElementById('mobile-drawer').classList.remove('-translate-x-full');
+        document.getElementById('mobile-drawer-backdrop').classList.remove('hidden');
+      }
+
+      function closeMobileDrawer() {
+        document.getElementById('mobile-drawer').classList.add('-translate-x-full');
+        document.getElementById('mobile-drawer-backdrop').classList.add('hidden');
+      }
+
+      // --- FILTERING & ORDERING ---
+      function getSearchFields(note) {
+        const folderName = (state.folders.find(f => f.id === note.folderId) || {}).name || '';
+        const labelNames = (note.labelIds || []).map(lid => (state.labels.find(l => l.id === lid) || {}).name || '').join(' ');
+        return [
+          note.title || 'Untitled note',
+          stripHtml(note.bodyHtml),
+          (note.checklist || []).map(c => c.text).join(' '),
+          (note.attachments || []).map(a => a.name + ' ' + a.type).join(' '),
+          (note.links || []).map(l => l.title + ' ' + l.domain + ' ' + l.url).join(' '),
+          folderName,
+          labelNames
+        ].map(value => String(value || '').toLowerCase());
+      }
+
+      function searchScore(note, q) {
+        if (!q) return 0;
+        const needle = q.toLowerCase().trim();
+        const fields = getSearchFields(note);
+        let best = 0;
+        const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const exactWord = new RegExp('(?:^|[^\\p{L}\\p{N}_])' + escaped + '(?:$|[^\\p{L}\\p{N}_])', 'u');
+        fields.forEach((field, index) => {
+          const weight = index === 0 ? 80 : index === 1 ? 55 : index === 2 ? 45 : 30;
+          if (field === needle) best = Math.max(best, 1200 + weight);
+          else if (field.includes(needle) && exactWord.test(field)) best = Math.max(best, 900 + weight);
+          else if (field.includes(needle)) best = Math.max(best, 500 + weight);
+          const parts = needle.split(/\s+/).filter(Boolean);
+          if (parts.length > 1 && parts.every(part => field.includes(part))) best = Math.max(best, 300 + weight);
+        });
+        return best;
+      }
+
+      function matchesSearch(note, q) {
+        return !q || searchScore(note, q) > 0;
+      }
+
+      function getVisibleNotes() {
+        const q = searchQuery.trim();
+        let list = [];
+
+        if (currentView === 'archive') {
+          list = state.notes.filter(n => n.archived && !n.trashed);
+        } else if (currentView === 'trash') {
+          list = state.notes.filter(n => n.trashed);
+        } else if (currentView === 'folders' && activeFolderId) {
+          list = state.notes.filter(n => !n.archived && !n.trashed && (activeFolderId === '__unfiled__' ? !n.folderId : n.folderId === activeFolderId));
+        } else if (currentView === 'labels' && activeLabelId) {
+          list = state.notes.filter(n => !n.archived && !n.trashed && (n.labelIds || []).includes(activeLabelId));
+        } else {
+          list = state.notes.filter(n => !n.archived && !n.trashed);
+        }
+
+        if (q) {
+          if (currentView !== 'archive' && currentView !== 'trash') list = list.filter(n => !n.archived && !n.trashed && matchesSearch(n, q));
+          else list = list.filter(n => matchesSearch(n, q));
+        }
+
+        // Relevance first. Equal scores fall back to normal pinned/manual ordering.
+        return list.sort((a, b) => {
+          if (q) {
+            const delta = searchScore(b, q) - searchScore(a, q);
+            if (delta) return delta;
+          }
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return (a.order || 0) - (b.order || 0);
+        });
+      }
+
+      // --- MAIN RENDERING ---
+      function renderMain() {
+        const container = document.getElementById('main-content');
+
+        if (currentView === 'settings') {
+          renderSettingsView(container);
+          return;
+        }
+
+        if (currentView === 'folders' && !activeFolderId && !searchQuery.trim()) {
+          renderFoldersDirectory(container);
+          return;
+        }
+
+        if (currentView === 'labels' && !activeLabelId && !searchQuery.trim()) {
+          renderLabelsDirectory(container);
+          return;
+        }
+
+        const notes = getVisibleNotes();
+        let headerHtml = '';
+
+        if (currentView === 'home') {
+          // Fixed greeting: "Welcome back" (no time of day, no user name) + Compact "Take a note…"
+          headerHtml = `
+            <div class="mb-6 space-y-4">
+              <h1 class="text-2xl font-semibold tracking-tight text-main">Welcome back</h1>
+              <button id="quick-capture-btn" type="button" class="w-full max-w-xl h-11 px-4 rounded-2xl bg-elevated border border-muted hover:border-strong text-left text-sm text-muted flex items-center justify-between transition-colors" style="box-shadow: var(--shadow-card);">
+                <span>Take a note…</span>
+                <i data-lucide="plus" class="w-4 h-4 text-muted"></i>
+              </button>
+            </div>
+          `;
+        } else if (currentView === 'all') {
+          headerHtml = `
+            <div class="mb-6 flex items-center justify-between gap-3">
+              <div>
+                <h1 class="text-xl font-semibold tracking-tight">All notes</h1>
+                <p class="text-xs text-muted mt-0.5">${notes.length} active ${notes.length === 1 ? 'note' : 'notes'}</p>
+              </div>
+              <button id="quick-capture-btn" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium inline-flex items-center gap-1.5">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> New note
+              </button>
+            </div>
+          `;
+        } else if (currentView === 'folders' && activeFolderId) {
+          const folder = activeFolderId === '__unfiled__' ? { name: 'Unfiled' } : state.folders.find(f => f.id === activeFolderId);
+          headerHtml = `
+            <div class="mb-6 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <button id="back-to-folders-btn" type="button" class="p-1.5 rounded-lg hover:bg-surface text-muted" aria-label="Back to folders">
+                  <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                </button>
+                <div>
+                  <h1 class="text-xl font-semibold tracking-tight">${escapeHtml(folder ? folder.name : 'Folder')}</h1>
+                  <p class="text-xs text-muted">${notes.length} ${notes.length === 1 ? 'note' : 'notes'}</p>
+                </div>
+              </div>
+              <button id="quick-capture-btn" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium inline-flex items-center gap-1.5">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> New note
+              </button>
+            </div>
+          `;
+        } else if (currentView === 'labels' && activeLabelId) {
+          const label = state.labels.find(l => l.id === activeLabelId);
+          headerHtml = `
+            <div class="mb-6 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <button id="back-to-labels-btn" type="button" class="p-1.5 rounded-lg hover:bg-surface text-muted" aria-label="Back to labels">
+                  <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                </button>
+                <div>
+                  <h1 class="text-xl font-semibold tracking-tight"># ${escapeHtml(label ? label.name : 'Label')}</h1>
+                  <p class="text-xs text-muted">${notes.length} ${notes.length === 1 ? 'note' : 'notes'}</p>
+                </div>
+              </div>
+              <button id="quick-capture-btn" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium inline-flex items-center gap-1.5">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> New note
+              </button>
+            </div>
+          `;
+        } else if (currentView === 'archive') {
+          headerHtml = `
+            <div class="mb-6">
+              <h1 class="text-xl font-semibold tracking-tight">Archive</h1>
+              <p class="text-xs text-muted mt-0.5">Archived notes are hidden from Home and normal Search. Long-press or open a note to restore it.</p>
+            </div>
+          `;
+        } else if (currentView === 'trash') {
+          headerHtml = `
+            <div class="mb-6 flex items-center justify-between gap-3">
+              <div>
+                <h1 class="text-xl font-semibold tracking-tight">Trash</h1>
+                <p class="text-xs text-muted mt-0.5">Deleted notes stay here until you restore or permanently delete them.</p>
+              </div>
+              ${notes.length > 0 ? `<button id="empty-trash-btn" type="button" class="px-3 py-1.5 rounded-xl border border-muted text-xs font-medium hover:bg-surface" style="color: var(--accent-clay);">Empty Trash</button>` : ''}
+            </div>
+          `;
+        }
+
+        const searchBanner = searchQuery.trim()
+          ? `<div class="mb-4 text-xs text-muted">Showing ${notes.length} result${notes.length === 1 ? '' : 's'} for "<span class="text-main font-medium">${escapeHtml(searchQuery.trim())}</span>"${currentView !== 'archive' && currentView !== 'trash' ? ' (active notes only)' : ''}</div>`
+          : '';
+
+        const hintBar = notes.length > 0 && !selectionMode && currentView !== 'trash'
+          ? `<div class="mb-3 flex items-center justify-between text-[11px] text-muted">
+               <span>Tap to open · Long-press to select · Hold the handle to reorder</span>
+             </div>`
+          : '';
+
+        let boardHtml = '';
+        if (notes.length === 0) {
+          const emptyMsg = searchQuery.trim()
+            ? 'No matching notes found.'
+            : currentView === 'archive'
+              ? 'No archived notes yet.'
+              : currentView === 'trash'
+                ? 'Trash is empty.'
+                : 'No notes here yet. Tap "Take a note…" to capture something.';
+          boardHtml = `
+            <div class="py-16 text-center rounded-2xl border border-dashed border-muted text-sm text-muted">
+              ${emptyMsg}
+            </div>
+          `;
+        } else {
+          // Uniform-height rounded cards, 2 cols mobile, 3 tablet, 4 desktop. Title ONLY (privacy rule).
+          boardHtml = `
+            <div id="notes-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              ${notes.map(note => renderNoteCard(note)).join('')}
+            </div>
+          `;
+        }
+
+        container.innerHTML = headerHtml + searchBanner + hintBar + boardHtml;
+        bindMainEvents();
+      }
+
+      function renderNoteCard(note) {
+        const hasTitle = Boolean(note.title && note.title.trim());
+        const displayTitle = hasTitle ? escapeHtml(note.title.trim()) : 'Untitled note';
+        const isSelected = selectedIds.has(note.id);
+        const canDrag = currentView === 'home' || currentView === 'all';
+
+        return `
+          <article
+            data-note-id="${note.id}"
+            draggable="${canDrag ? 'true' : 'false'}"
+            class="note-card ${getColourClass(note.colour)} ${isSelected ? 'is-selected' : ''} relative p-3.5 flex flex-col justify-between cursor-pointer"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <h2 class="text-sm font-medium leading-snug line-clamp-2 ${hasTitle ? 'text-main' : 'text-muted italic font-normal'}">
+                ${displayTitle}
+              </h2>
+              ${selectionMode ? `
+                <span class="shrink-0 w-5 h-5 rounded-full border flex items-center justify-center ${isSelected ? 'border-transparent text-white' : 'border-strong bg-transparent'}" style="${isSelected ? 'background-color: var(--accent-olive);' : ''}">
+                  ${isSelected ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}
+                </span>
+              ` : (canDrag ? `
+                <button type="button" class="drag-handle shrink-0 -mr-1 -mt-1 p-1 rounded-md text-muted/60 hover:text-main hover:bg-black/5 dark:hover:bg-white/10" aria-label="Drag to reorder" title="Drag to reorder">
+                  <i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i>
+                </button>
+              ` : '')}
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] text-muted">
+              <span>${note.pinned ? 'Pinned' : 'Note'}</span>
+              ${note.pinned ? '<i data-lucide="pin" class="w-3 h-3 text-muted"></i>' : ''}
+            </div>
+          </article>
+        `;
+      }
+
+      function renderFoldersDirectory(container) {
+        const unfiledCount = state.notes.filter(n => !n.archived && !n.trashed && !n.folderId).length;
+        const folderCards = state.folders.map(f => {
+          const count = state.notes.filter(n => !n.archived && !n.trashed && n.folderId === f.id).length;
+          return `
+            <div class="p-4 rounded-2xl bg-elevated border border-muted flex items-center justify-between gap-3" style="box-shadow: var(--shadow-card);">
+              <button type="button" data-open-folder="${f.id}" class="min-w-0 flex-1 text-left flex items-center gap-3">
+                <i data-lucide="folder" class="w-5 h-5 text-muted shrink-0"></i>
+                <span class="font-medium text-sm truncate">${escapeHtml(f.name)}</span>
+                <span class="text-xs text-muted shrink-0">${count}</span>
+              </button>
+              <button type="button" data-delete-folder="${f.id}" class="p-2 rounded-lg hover:bg-surface text-muted" title="Delete folder" aria-label="Delete folder ${escapeHtml(f.name)}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          `;
+        }).join('');
+        container.innerHTML = `
+          <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div><h1 class="text-xl font-semibold tracking-tight">Folders</h1><p class="text-xs text-muted mt-0.5">One folder per note. Folders stay at one level.</p></div>
+            <form id="new-folder-form" class="flex items-center gap-2">
+              <input id="new-folder-input" type="text" placeholder="New folder name" class="h-9 px-3 rounded-xl bg-elevated border border-muted text-xs text-main placeholder:text-muted focus:outline-none focus:border-strong" />
+              <button type="submit" class="h-9 px-3 rounded-xl btn-olive text-xs font-medium">Create</button>
+            </form>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+            <button type="button" data-open-folder="__unfiled__" class="p-4 rounded-2xl bg-elevated border border-muted hover:border-strong text-left flex items-center justify-between" style="box-shadow: var(--shadow-card);">
+              <span class="flex items-center gap-3 min-w-0"><i data-lucide="folder-open" class="w-5 h-5 text-muted shrink-0"></i><span class="font-medium text-sm">Unfiled</span></span><span class="text-xs text-muted">${unfiledCount}</span>
+            </button>
+            ${folderCards || '<div class="text-sm text-muted">No folders yet.</div>'}
+          </div>
+        `;
+
+        container.querySelectorAll('[data-open-folder]').forEach(btn => btn.addEventListener('click', () => {
+          activeFolderId = btn.getAttribute('data-open-folder');
+          renderAll();
+        }));
+        container.querySelectorAll('[data-delete-folder]').forEach(btn => btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const folderId = btn.getAttribute('data-delete-folder');
+          const folder = state.folders.find(f => f.id === folderId);
+          const count = state.notes.filter(n => n.folderId === folderId).length;
+          if (!folder) return;
+          openConfirm({
+            title: 'Delete folder?',
+            message: `Delete “${folder.name}”? ${count} ${count === 1 ? 'note will' : 'notes will'} move to Trash. You can restore those notes later; restored notes will be Unfiled.`,
+            destructive: true,
+            onConfirm: () => {
+              state.notes.forEach(note => {
+                if (note.folderId === folderId) { note.folderId = ''; note.trashed = true; note.archived = false; }
+              });
+              state.folders = state.folders.filter(f => f.id !== folderId);
+              if (activeFolderId === folderId) activeFolderId = null;
+              saveState(); renderAll(); showToast(`Folder deleted; ${count} ${count === 1 ? 'note moved' : 'notes moved'} to Trash`);
+            }
+          });
+        }));
+
+        const form = document.getElementById('new-folder-form');
+        form.addEventListener('submit', e => {
+          e.preventDefault();
+          const input = document.getElementById('new-folder-input');
+          const name = input.value.trim();
+          if (!name) return;
+          if (state.folders.some(f => f.name.toLowerCase() === name.toLowerCase())) { showToast('A folder with that name already exists'); return; }
+          state.folders.push({ id: uid('f'), name });
+          saveState(); renderAll(); showToast(`Folder “${name}” created`);
+        });
+      }
+
+      function labelColour(label) { return LABEL_COLOURS.find(c => c.id === (label && label.colour)) || LABEL_COLOURS[0]; }
+      function labelTintStyle(label) {
+        const c = labelColour(label);
+        return `background-color:${state.theme === 'dark' ? c.dark : c.light}; border-color:${c.swatch}55;`;
+      }
+      function renderLabelColourControls(label) {
+        return LABEL_COLOURS.map(c => `<button type="button" data-set-label-colour="${label.id}" data-colour-value="${c.id}" class="label-swatch" style="background:${c.swatch};" title="${c.label}" aria-label="Set ${escapeHtml(label.name)} colour to ${c.label}"></button>`).join('');
+      }
+
+      function renderLabelsDirectory(container) {
+        const cards = state.labels.map(label => {
+          const count = state.notes.filter(n => !n.archived && !n.trashed && (n.labelIds || []).includes(label.id)).length;
+          const colour = labelColour(label);
+          return `
+            <div class="label-card p-4 flex flex-col gap-3" style="${labelTintStyle(label)}">
+              <button type="button" data-open-label="${label.id}" class="text-left flex items-center justify-between gap-3">
+                <span class="min-w-0 flex items-center gap-2.5"><i data-lucide="tag" class="w-4 h-4 shrink-0" style="color:${colour.swatch}"></i><span class="font-medium text-sm truncate">${escapeHtml(label.name)}</span></span>
+                <span class="text-xs text-muted shrink-0">${count}</span>
+              </button>
+              <div class="flex items-center justify-between gap-2 label-card-actions">
+                <div class="flex items-center gap-2">${renderLabelColourControls(label)}</div>
+                <button type="button" data-delete-label="${label.id}" class="rounded-lg text-muted hover:text-main hover:bg-black/5 dark:hover:bg-white/10 p-1.5" title="Delete label" aria-label="Delete label ${escapeHtml(label.name)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = `
+          <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div><h1 class="text-xl font-semibold tracking-tight">Labels</h1><p class="text-xs text-muted mt-0.5">Tag notes across folders. New labels start in muted olive.</p></div>
+            <form id="new-label-form" class="flex items-center gap-2">
+              <input id="new-label-input" type="text" placeholder="New label name" class="h-9 px-3 rounded-xl bg-elevated border border-muted text-xs text-main placeholder:text-muted focus:outline-none focus:border-strong" />
+              <button type="submit" class="h-9 px-3 rounded-xl btn-olive text-xs font-medium">Create</button>
+            </form>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${cards || '<div class="text-sm text-muted">No labels yet.</div>'}</div>
+        `;
+
+        container.querySelectorAll('[data-open-label]').forEach(btn => btn.addEventListener('click', () => { activeLabelId = btn.getAttribute('data-open-label'); renderAll(); }));
+        container.querySelectorAll('[data-set-label-colour]').forEach(btn => btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const label = state.labels.find(l => l.id === btn.getAttribute('data-set-label-colour'));
+          if (!label) return;
+          label.colour = btn.getAttribute('data-colour-value');
+          saveState(); renderAll(); showToast(`${label.name} colour updated everywhere`);
+        }));
+        container.querySelectorAll('[data-delete-label]').forEach(btn => btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const labelId = btn.getAttribute('data-delete-label');
+          const label = state.labels.find(l => l.id === labelId);
+          if (!label) return;
+          const count = state.notes.filter(n => (n.labelIds || []).includes(labelId)).length;
+          openConfirm({
+            title: 'Delete label?',
+            message: `Delete “${label.name}”? It will be removed from ${count} ${count === 1 ? 'note' : 'notes'}. The notes themselves will remain unchanged.`,
+            destructive: true,
+            onConfirm: () => {
+              state.labels = state.labels.filter(l => l.id !== labelId);
+              state.notes.forEach(n => { n.labelIds = (n.labelIds || []).filter(id => id !== labelId); });
+              if (activeLabelId === labelId) activeLabelId = null;
+              saveState(); renderAll(); showToast('Label deleted');
+            }
+          });
+        }));
+
+        document.getElementById('new-label-form').addEventListener('submit', e => {
+          e.preventDefault();
+          const input = document.getElementById('new-label-input');
+          const name = input.value.trim();
+          if (!name) return;
+          if (state.labels.some(l => l.name.toLowerCase() === name.toLowerCase())) { showToast('A label with that name already exists'); return; }
+          state.labels.push({ id: uid('l'), name, colour: 'olive' });
+          saveState(); renderAll(); showToast(`Label “${name}” created`);
+        });
+      }
+
+      let installPromptEvent = null;
+      function renderSettingsView(container) {
+        container.innerHTML = `
+          <div class="max-w-xl">
+            <div class="mb-5"><h1 class="text-xl font-semibold tracking-tight">Settings</h1></div>
+            <div class="divide-y border-y border-muted">
+              <div class="py-4 flex items-center justify-between gap-4">
+                <div><div class="text-sm font-medium">Appearance</div><div class="text-xs text-muted mt-0.5">Choose light or dark theme</div></div>
+                <button id="settings-theme-btn" type="button" class="px-3.5 py-2 rounded-xl border border-muted hover:bg-surface text-xs font-medium">${state.theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}</button>
+              </div>
+              <div class="py-4 flex items-center justify-between gap-4">
+                <div><div class="text-sm font-medium">Install Memory</div><div class="text-xs text-muted mt-0.5">On iPad use Safari Share → Add to Home Screen; on Android or desktop use Install app</div></div>
+                <button id="install-pwa-btn" type="button" class="px-3.5 py-2 rounded-xl border border-muted hover:bg-surface text-xs font-medium">${installPromptEvent ? 'Install' : 'Install options'}</button>
+              </div>
+              <div class="py-4">
+                <div class="text-sm font-medium">Backup & Restore</div>
+                <div class="text-xs text-muted mt-0.5">Export notes and actual attached files in one backup, or restore a previous backup.</div>
+                <div class="flex flex-wrap items-center gap-2 pt-3">
+                  <button id="export-json-btn" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium inline-flex items-center gap-1.5"><i data-lucide="download" class="w-3.5 h-3.5"></i> Export complete backup</button>
+                  <label class="px-3.5 py-2 rounded-xl border border-muted hover:bg-surface text-xs font-medium cursor-pointer inline-flex items-center gap-1.5"><i data-lucide="upload" class="w-3.5 h-3.5"></i> Import backup<input id="import-json-input" type="file" accept="application/json,.json" class="hidden" /></label>
+                </div>
+              </div>
+              <div class="py-4 flex items-center justify-between gap-4">
+                <div><div class="text-sm font-medium">Reset sample notes</div><div class="text-xs text-muted mt-0.5">Replace current local prototype data with sample notes.</div></div>
+                <button id="reset-demo-btn" type="button" class="px-3.5 py-2 rounded-xl border border-muted hover:bg-surface text-xs text-muted">Reset</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('settings-theme-btn').addEventListener('click', toggleTheme);
+        document.getElementById('install-pwa-btn').addEventListener('click', async () => {
+          if (installPromptEvent) {
+            installPromptEvent.prompt();
+            await installPromptEvent.userChoice;
+            installPromptEvent = null;
+            renderMain();
+          } else {
+            showToast('On iPad, use Safari Share → Add to Home Screen. On Android or desktop, use your browser menu → Install app / Add to Home Screen.');
+          }
+        });
+        document.getElementById('export-json-btn').addEventListener('click', exportCompleteBackup);
+        document.getElementById('import-json-input').addEventListener('change', importCompleteBackup);
+        document.getElementById('reset-demo-btn').addEventListener('click', () => {
+          openConfirm({
+            title: 'Reset sample notes?',
+            message: 'This replaces your current local prototype data with the initial sample notes and removes attached files in the current prototype database.',
+            destructive: true,
+            onConfirm: async () => {
+              state = normalizeState(getDefaultData());
+              await saveState(); applyTheme(); renderAll(); showToast('Sample notes restored');
+            }
+          });
+        });
+      }
+
+      function blobToDataUrl(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error || new Error('Could not read attachment for backup.'));
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      function dataUrlToBlob(dataUrl) {
+        const [meta, base64] = String(dataUrl).split(',');
+        const mime = (meta.match(/^data:([^;]+)/) || [])[1] || 'application/octet-stream';
+        const binary = atob(base64 || '');
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new Blob([bytes], { type: mime });
+      }
+
+      async function exportCompleteBackup() {
+        try {
+          await persistenceQueue;
+          const backup = cloneData(state);
+          for (const note of backup.notes) {
+            for (const attachment of (note.attachments || [])) {
+              const blob = attachment.blob || attachment.fileBlob;
+              if (blob instanceof Blob) {
+                attachment.dataUrl = await blobToDataUrl(blob);
+                delete attachment.blob; delete attachment.fileBlob;
+              }
+            }
+          }
+          const payload = { format: 'memory-complete-backup', version: 2, exportedAt: new Date().toISOString(), state: backup };
+          const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = `memory-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          showToast('Complete backup exported');
+        } catch (error) { console.error(error); showToast('Backup export failed'); }
+      }
+
+      async function importCompleteBackup(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        try {
+          const parsed = JSON.parse(await file.text());
+          const imported = parsed && parsed.state ? parsed.state : parsed;
+          if (!imported || !Array.isArray(imported.notes) || !Array.isArray(imported.folders) || !Array.isArray(imported.labels)) throw new Error('Invalid backup structure');
+          for (const note of imported.notes) {
+            for (const attachment of (note.attachments || [])) {
+              if (attachment.dataUrl) { attachment.blob = dataUrlToBlob(attachment.dataUrl); delete attachment.dataUrl; }
+            }
+          }
+          state = normalizeState(imported);
+          await saveState(); applyTheme(); renderAll(); showToast('Backup restored');
+        } catch (error) { console.error(error); showToast('Could not restore this backup'); }
+        finally { event.target.value = ''; }
+      }
+
+      // --- CARD INTERACTIONS: TAP, LONG-PRESS, HANDLE-ONLY DRAG ---
+      function bindMainEvents() {
+        const quickBtn = document.getElementById('quick-capture-btn');
+        if (quickBtn) {
+          quickBtn.addEventListener('click', () => openEditor(null));
+        }
+
+        const backFolders = document.getElementById('back-to-folders-btn');
+        if (backFolders) {
+          backFolders.addEventListener('click', () => {
+            activeFolderId = null;
+            renderAll();
+          });
+        }
+
+        const backLabels = document.getElementById('back-to-labels-btn');
+        if (backLabels) {
+          backLabels.addEventListener('click', () => {
+            activeLabelId = null;
+            renderAll();
+          });
+        }
+
+        const emptyTrashBtn = document.getElementById('empty-trash-btn');
+        if (emptyTrashBtn) {
+          emptyTrashBtn.addEventListener('click', () => {
+            const count = state.notes.filter(n => n.trashed).length;
+            openConfirm({
+              title: 'Empty Trash?',
+              message: `Permanently delete ${count} ${count === 1 ? 'note' : 'notes'}? This cannot be undone.`,
+              destructive: true,
+              onConfirm: () => {
+                state.notes = state.notes.filter(n => !n.trashed);
+                saveState();
+                renderAll();
+                showToast('Trash emptied');
+              }
+            });
+          });
+        }
+
+        document.querySelectorAll('[data-note-id]').forEach(card => {
+          const id = card.getAttribute('data-note-id');
+          let pressTimer = null;
+          let longPressed = false;
+
+          const handle = card.querySelector('.drag-handle');
+          if (handle) {
+            handle.addEventListener('pointerdown', e => {
+              e.stopPropagation();
+              allowDragFromHandle = true;
+              if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                const start = { id, x: e.clientX, y: e.clientY, active: false, targetId: null };
+                handle.setPointerCapture?.(e.pointerId);
+                const move = ev => {
+                  if (!start.active && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 7) return;
+                  start.active = true;
+                  card.classList.add('is-dragging');
+                  const under = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-note-id]');
+                  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                  if (under && under.getAttribute('data-note-id') !== id) {
+                    const a = state.notes.find(n => n.id === id); const b = state.notes.find(n => n.id === under.getAttribute('data-note-id'));
+                    if (a && b && a.pinned === b.pinned) { start.targetId = b.id; under.classList.add('drag-over'); }
+                  }
+                };
+                const finish = () => {
+                  handle.removeEventListener('pointermove', move);
+                  handle.removeEventListener('pointerup', finish);
+                  handle.removeEventListener('pointercancel', finish);
+                  card.classList.remove('is-dragging');
+                  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                  if (start.active && start.targetId) reorderNotes(start.id, start.targetId);
+                  allowDragFromHandle = false;
+                };
+                handle.addEventListener('pointermove', move);
+                handle.addEventListener('pointerup', finish);
+                handle.addEventListener('pointercancel', finish);
+              }
+            });
+            handle.addEventListener('pointerup', e => {
+              if (e.pointerType === 'mouse' && !draggingNoteId) allowDragFromHandle = false;
+            });
+            handle.addEventListener('click', e => e.stopPropagation());
+          }
+
+          card.addEventListener('pointerdown', e => {
+            if (e.target.closest('.drag-handle')) return;
+            allowDragFromHandle = false;
+            longPressed = false;
+            pressTimer = setTimeout(() => {
+              longPressed = true;
+              if (!selectionMode) {
+                selectionMode = true;
+                selectedIds.clear();
+              }
+              toggleSelection(id);
+            }, 450);
+          });
+
+          const cancelPress = () => {
+            if (pressTimer) {
+              clearTimeout(pressTimer);
+              pressTimer = null;
+            }
+          };
+
+          card.addEventListener('pointerup', cancelPress);
+          card.addEventListener('pointerleave', cancelPress);
+          card.addEventListener('pointercancel', cancelPress);
+
+          card.addEventListener('click', e => {
+            if (e.target.closest('.drag-handle')) return;
+            if (longPressed) {
+              longPressed = false;
+              return;
+            }
+            if (selectionMode) {
+              toggleSelection(id);
+            } else {
+              openEditor(id);
+            }
+          });
+
+          // Handle-only drag & drop
+          card.addEventListener('dragstart', e => {
+            if (!allowDragFromHandle || selectionMode) {
+              e.preventDefault();
+              return;
+            }
+            draggingNoteId = id;
+            card.classList.add('is-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', id);
+          });
+
+          card.addEventListener('dragend', () => {
+            draggingNoteId = null;
+            allowDragFromHandle = false;
+            card.classList.remove('is-dragging');
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+          });
+
+          card.addEventListener('dragover', e => {
+            if (!draggingNoteId || draggingNoteId === id) return;
+            const dragged = state.notes.find(n => n.id === draggingNoteId);
+            const target = state.notes.find(n => n.id === id);
+            if (!dragged || !target || dragged.pinned !== target.pinned) return;
+            e.preventDefault();
+            card.classList.add('drag-over');
+          });
+
+          card.addEventListener('dragleave', () => {
+            card.classList.remove('drag-over');
+          });
+
+          card.addEventListener('drop', e => {
+            e.preventDefault();
+            card.classList.remove('drag-over');
+            if (!draggingNoteId || draggingNoteId === id) return;
+            reorderNotes(draggingNoteId, id);
+          });
+        });
+      }
+
+      function reorderNotes(sourceId, targetId) {
+        const source = state.notes.find(n => n.id === sourceId);
+        const target = state.notes.find(n => n.id === targetId);
+        if (!source || !target || source.pinned !== target.pinned) return;
+
+        const group = state.notes
+          .filter(n => !n.archived && !n.trashed && n.pinned === source.pinned)
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        const fromIdx = group.findIndex(n => n.id === sourceId);
+        const toIdx = group.findIndex(n => n.id === targetId);
+        if (fromIdx === -1 || toIdx === -1) return;
+
+        const [moved] = group.splice(fromIdx, 1);
+        group.splice(toIdx, 0, moved);
+        group.forEach((n, idx) => {
+          n.order = (source.pinned ? 1 : 1000) + idx;
+        });
+
+        saveState();
+        renderAll();
+      }
+
+      // --- MULTI-SELECT & BULK TOOLBAR ---
+      function toggleSelection(id) {
+        if (selectedIds.has(id)) {
+          selectedIds.delete(id);
+        } else {
+          selectedIds.add(id);
+        }
+        if (selectedIds.size === 0) {
+          selectionMode = false;
+        }
+        renderAll();
+      }
+
+      function exitSelectionMode() {
+        selectionMode = false;
+        selectedIds.clear();
+        document.getElementById('bulk-colour-popover').classList.add('hidden');
+        renderBulkToolbar();
+      }
+
+      function renderBulkToolbar() {
+        const bar = document.getElementById('bulk-toolbar');
+        const popover = document.getElementById('bulk-colour-popover');
+        if (!selectionMode || selectedIds.size === 0) {
+          bar.classList.add('hidden');
+          popover.classList.add('hidden');
+          return;
+        }
+
+        bar.classList.remove('hidden');
+        const count = selectedIds.size;
+        document.getElementById('bulk-count').textContent = `${count} selected`;
+
+        const container = document.getElementById('bulk-actions-container');
+        if (currentView === 'trash') {
+          container.innerHTML = `
+            <button type="button" id="bulk-restore-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1.5">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restore
+            </button>
+            <button type="button" id="bulk-perm-delete-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1.5" style="color: var(--accent-clay);">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete forever
+            </button>
+          `;
+          document.getElementById('bulk-restore-btn').addEventListener('click', () => {
+            state.notes.forEach(n => {
+              if (selectedIds.has(n.id)) n.trashed = false;
+            });
+            saveState();
+            exitSelectionMode();
+            renderAll();
+            showToast(`Restored ${count} ${count === 1 ? 'note' : 'notes'}`);
+          });
+          document.getElementById('bulk-perm-delete-btn').addEventListener('click', () => {
+            openConfirm({
+              title: 'Delete permanently?',
+              message: `Permanently delete ${count} selected ${count === 1 ? 'note' : 'notes'}? This cannot be undone.`,
+              destructive: true,
+              onConfirm: () => {
+                state.notes = state.notes.filter(n => !selectedIds.has(n.id));
+                saveState();
+                exitSelectionMode();
+                renderAll();
+                showToast(`Permanently deleted ${count} ${count === 1 ? 'note' : 'notes'}`);
+              }
+            });
+          });
+        } else if (currentView === 'archive') {
+          container.innerHTML = `
+            <button type="button" id="bulk-unarchive-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1.5">
+              <i data-lucide="archive-restore" class="w-3.5 h-3.5"></i> Restore
+            </button>
+            <button type="button" id="bulk-delete-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1.5" style="color: var(--accent-clay);">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
+            </button>
+          `;
+          document.getElementById('bulk-unarchive-btn').addEventListener('click', () => {
+            state.notes.forEach(n => {
+              if (selectedIds.has(n.id)) n.archived = false;
+            });
+            saveState();
+            exitSelectionMode();
+            renderAll();
+            showToast(`Restored ${count} ${count === 1 ? 'note' : 'notes'} to Home`);
+          });
+          document.getElementById('bulk-delete-btn').addEventListener('click', () => confirmBulkDelete(count));
+        } else {
+          // Active board bulk toolbar: Pin | Colour | Archive | Move | Delete
+          const selectedNotes = state.notes.filter(n => selectedIds.has(n.id));
+          const allPinned = selectedNotes.every(n => n.pinned);
+
+          container.innerHTML = `
+            <button type="button" id="bulk-pin-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1">
+              <i data-lucide="pin" class="w-3.5 h-3.5"></i><span>${allPinned ? 'Unpin' : 'Pin'}</span>
+            </button>
+            <button type="button" id="bulk-colour-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1">
+              <i data-lucide="palette" class="w-3.5 h-3.5"></i><span>Colour</span>
+            </button>
+            <button type="button" id="bulk-archive-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1">
+              <i data-lucide="archive" class="w-3.5 h-3.5"></i><span>Archive</span>
+            </button>
+            <button type="button" id="bulk-move-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1">
+              <i data-lucide="folder-input" class="w-3.5 h-3.5"></i><span>Move</span>
+            </button>
+            <button type="button" id="bulk-delete-btn" class="px-2.5 py-1.5 rounded-xl hover:bg-surface text-xs font-medium inline-flex items-center gap-1" style="color: var(--accent-clay);">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>Delete</span>
+            </button>
+          `;
+
+          // Immediate: Pin / Unpin
+          document.getElementById('bulk-pin-btn').addEventListener('click', () => {
+            const targetPin = !allPinned;
+            state.notes.forEach(n => {
+              if (selectedIds.has(n.id)) n.pinned = targetPin;
+            });
+            saveState();
+            exitSelectionMode();
+            renderAll();
+            showToast(targetPin ? `Pinned ${count} ${count === 1 ? 'note' : 'notes'}` : `Unpinned ${count} ${count === 1 ? 'note' : 'notes'}`);
+          });
+
+          // Immediate: Change colour
+          document.getElementById('bulk-colour-btn').addEventListener('click', () => {
+            popover.classList.toggle('hidden');
+            renderSwatches('bulk-colour-swatches', null, colourId => {
+              state.notes.forEach(n => {
+                if (selectedIds.has(n.id)) n.colour = colourId;
+              });
+              saveState();
+              exitSelectionMode();
+              renderAll();
+              showToast(`Updated colour for ${count} ${count === 1 ? 'note' : 'notes'}`);
+            });
+          });
+
+          // Archive is immediate for both individual and bulk actions.
+          document.getElementById('bulk-archive-btn').addEventListener('click', () => {
+            state.notes.forEach(n => { if (selectedIds.has(n.id)) { n.archived = true; n.trashed = false; } });
+            saveState(); exitSelectionMode(); renderAll();
+            showToast(`Archived ${count} ${count === 1 ? 'note' : 'notes'}`);
+          });
+
+          // Confirmation required: Move to folder (shows destination folder before confirmation)
+          document.getElementById('bulk-move-btn').addEventListener('click', () => {
+            const optionsHtml = `
+              <div class="space-y-2">
+                <label for="bulk-folder-select" class="block text-xs font-medium text-main">Destination folder</label>
+                <select id="bulk-folder-select" class="w-full h-9 px-3 rounded-xl bg-main border border-muted text-sm text-main focus:outline-none">
+                  <option value="">Unfiled</option>
+                  ${state.folders.map(f => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('')}
+                </select>
+                <p id="bulk-move-preview" class="text-xs text-muted"></p>
+              </div>
+            `;
+
+            openConfirm({
+              title: 'Move notes to folder?',
+              message: `Choose a destination folder for ${count} selected ${count === 1 ? 'note' : 'notes'}.`,
+              extraHtml: optionsHtml,
+              onOpen: () => {
+                const sel = document.getElementById('bulk-folder-select');
+                const preview = document.getElementById('bulk-move-preview');
+                const updatePreview = () => {
+                  const chosen = state.folders.find(f => f.id === sel.value);
+                  preview.textContent = chosen
+                    ? `Destination: ${chosen.name}`
+                    : 'Destination: Unfiled';
+                };
+                sel.addEventListener('change', updatePreview);
+                updatePreview();
+              },
+              onConfirm: () => {
+                const sel = document.getElementById('bulk-folder-select');
+                const folderId = sel ? sel.value : '';
+                const chosen = state.folders.find(f => f.id === folderId);
+                state.notes.forEach(n => {
+                  if (selectedIds.has(n.id)) n.folderId = folderId;
+                });
+                saveState();
+                exitSelectionMode();
+                renderAll();
+                showToast(chosen ? `Moved ${count} ${count === 1 ? 'note' : 'notes'} to ${chosen.name}` : `Moved ${count} ${count === 1 ? 'note' : 'notes'} to Unfiled`);
+              }
+            });
+          });
+
+          // Confirmation required: Delete
+          document.getElementById('bulk-delete-btn').addEventListener('click', () => confirmBulkDelete(count));
+        }
+
+        refreshIcons();
+      }
+
+      function confirmBulkDelete(count) {
+        openConfirm({
+          title: 'Move notes to Trash?',
+          message: `${count} selected ${count === 1 ? 'note' : 'notes'} will be moved to Trash. You can restore them later from Trash.`,
+          destructive: true,
+          onConfirm: () => {
+            state.notes.forEach(n => {
+              if (selectedIds.has(n.id)) {
+                n.trashed = true;
+                n.archived = false;
+              }
+            });
+            saveState();
+            exitSelectionMode();
+            renderAll();
+            showToast(`Moved ${count} ${count === 1 ? 'note' : 'notes'} to Trash`);
+          }
+        });
+      }
+
+      function renderSwatches(containerId, activeId, onPick) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        const isDark = state.theme === 'dark';
+        el.innerHTML = NOTE_COLOURS.map(c => {
+          const bg = isDark ? c.swatchDark : c.swatchLight;
+          const active = c.id === activeId;
+          return `
+            <button
+              type="button"
+              data-colour="${c.id}"
+              title="${c.label}"
+              aria-label="${c.label}"
+              class="w-6 h-6 rounded-full border flex items-center justify-center transition-transform hover:scale-105"
+              style="background-color: ${bg}; border-color: ${active ? 'var(--accent-olive)' : 'var(--border-strong)'}; ${active ? 'box-shadow: 0 0 0 2px var(--accent-olive);' : ''}"
+            >
+              ${active ? '<i data-lucide="check" class="w-3 h-3 text-main"></i>' : ''}
+            </button>
+          `;
+        }).join('');
+        el.querySelectorAll('[data-colour]').forEach(btn => {
+          btn.addEventListener('click', () => onPick(btn.getAttribute('data-colour')));
+        });
+        refreshIcons();
+      }
+
+      async function fetchLinkMetadata(noteId, linkId, url) {
+        try {
+          if (!navigator.onLine) return;
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 6500);
+          const response = await fetch(url, { signal: controller.signal, mode: 'cors' });
+          clearTimeout(timeout);
+          if (!response.ok) throw new Error('Website did not return a readable page');
+          const html = await response.text();
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const title = doc.querySelector('meta[property="og:title"]')?.content || doc.querySelector('meta[name="twitter:title"]')?.content || doc.title || '';
+          updateLinkMetadata(noteId, linkId, title.trim());
+        } catch (error) {
+          // Cross-origin restrictions are common. Keep the URL and retry on reconnect.
+          const note = state.notes.find(n => n.id === noteId);
+          const link = note && (note.links || []).find(l => l.id === linkId);
+          if (link) { link.metadataPending = true; saveState(); }
+          if (editorDraft && editorDraft.id === noteId) {
+            const draftLink = (editorDraft.links || []).find(l => l.id === linkId);
+            if (draftLink) { draftLink.metadataPending = true; renderEditorLinks(); }
+          }
+        }
+      }
+
+      function updateLinkMetadata(noteId, linkId, title) {
+        if (!title) return;
+        const note = state.notes.find(n => n.id === noteId);
+        if (note) {
+          const link = (note.links || []).find(l => l.id === linkId);
+          if (link && !link.titleLocked) { link.title = title; link.metadataPending = false; saveState(); }
+        }
+        if (editorDraft && editorDraft.id === noteId) {
+          const link = (editorDraft.links || []).find(l => l.id === linkId);
+          if (link && !link.titleLocked) { link.title = title; link.metadataPending = false; renderEditorLinks(); persistEditorDraft(); }
+        }
+      }
+
+      async function retryPendingLinkMetadata() {
+        if (!navigator.onLine) return;
+        const jobs = [];
+        state.notes.forEach(note => (note.links || []).forEach(link => {
+          if (link.metadataPending) jobs.push(fetchLinkMetadata(note.id, link.id, link.url));
+        }));
+        await Promise.allSettled(jobs);
+      }
+
+      // --- NOTE EDITOR ---
+      function openEditor(noteId) {
+        formattingBarOpen = false;
+        document.getElementById('formatting-bar').classList.add('hidden');
+        document.getElementById('add-link-bar').classList.add('hidden');
+        document.getElementById('editor-more-menu').classList.add('hidden');
+
+        if (noteId) {
+          const existing = state.notes.find(n => n.id === noteId);
+          if (!existing) return;
+          editingNoteId = existing.id;
+          editorDraft = cloneData(existing);
+        } else {
+          editingNoteId = 'NEW';
+          const maxOrder = state.notes.reduce((m, n) => Math.max(m, n.order || 0), 0);
+          editorDraft = {
+            id: uid('n'),
+            title: '',
+            bodyHtml: '',
+            checklist: [],
+            attachments: [],
+            links: [],
+            colour: 'paper',
+            pinned: false,
+            order: maxOrder + 1,
+            folderId: currentView === 'folders' && activeFolderId && activeFolderId !== '__unfiled__' ? activeFolderId : '',
+            labelIds: currentView === 'labels' && activeLabelId ? [activeLabelId] : [],
+            archived: false,
+            trashed: false,
+            createdAt: Date.now()
+          };
+        }
+
+        const titleEl = document.getElementById('editor-title');
+        const bodyEl = document.getElementById('editor-body');
+        titleEl.value = editorDraft.title || '';
+        bodyEl.innerHTML = editorDraft.bodyHtml || '';
+        const created = new Date(editorDraft.createdAt || Date.now());
+        document.getElementById('editor-created-date').textContent = created.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+        applyEditorVisuals();
+        renderEditorChecklist();
+        renderEditorLinks();
+        renderEditorAttachments();
+        renderEditorMoreMenu();
+
+        document.getElementById('editor-overlay').classList.remove('hidden');
+        if (!noteId) {
+          bodyEl.focus();
+        }
+        refreshIcons();
+      }
+
+      function isDraftEmpty() {
+        const hasTitle = Boolean(editorDraft.title && editorDraft.title.trim());
+        const hasBody = Boolean(stripHtml(editorDraft.bodyHtml));
+        const hasCheck = (editorDraft.checklist || []).some(c => c.text && c.text.trim());
+        const hasAttach = (editorDraft.attachments || []).length > 0;
+        const hasLinks = (editorDraft.links || []).length > 0;
+        return !(hasTitle || hasBody || hasCheck || hasAttach || hasLinks);
+      }
+
+      function persistEditorDraft() {
+        if (!editorDraft) return;
+        editorDraft.title = document.getElementById('editor-title').value;
+        editorDraft.bodyHtml = document.getElementById('editor-body').innerHTML;
+
+        if (isDraftEmpty()) {
+          document.getElementById('editor-save-status').textContent = 'Empty note (not saved)';
+          return;
+        }
+
+        // Editing does NOT change note.order or move it to the top
+        const idx = state.notes.findIndex(n => n.id === editorDraft.id);
+        if (idx === -1) {
+          state.notes.push(cloneData(editorDraft));
+          editingNoteId = editorDraft.id;
+        } else {
+          state.notes[idx] = cloneData(editorDraft);
+        }
+        const noteId = editorDraft.id;
+        document.getElementById('editor-save-status').textContent = 'Saving…';
+        saveState().then(ok => {
+          if (editorDraft && editorDraft.id === noteId && !document.getElementById('editor-overlay').classList.contains('hidden')) {
+            document.getElementById('editor-save-status').textContent = ok ? 'Saved on this device' : 'Save failed';
+          }
+        });
+      }
+
+      function scheduleAutoSave() {
+        document.getElementById('editor-save-status').textContent = 'Saving…';
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+          persistEditorDraft();
+          renderNav();
+          renderMain();
+        }, 280);
+      }
+
+      function closeEditor() {
+        clearTimeout(autoSaveTimer);
+        if (editorDraft) {
+          editorDraft.title = document.getElementById('editor-title').value;
+          editorDraft.bodyHtml = document.getElementById('editor-body').innerHTML;
+          if (!isDraftEmpty()) {
+            persistEditorDraft();
+          } else if (editingNoteId !== 'NEW') {
+            // If an existing note was completely cleared, remove it rather than keeping an empty note
+            state.notes = state.notes.filter(n => n.id !== editorDraft.id);
+            saveState();
+          }
+        }
+        editingNoteId = null;
+        editorDraft = null;
+        document.getElementById('editor-overlay').classList.add('hidden');
+        document.getElementById('editor-more-menu').classList.add('hidden');
+        renderAll();
+      }
+
+      function applyEditorVisuals() {
+        const panel = document.getElementById('editor-panel');
+        NOTE_COLOURS.forEach(c => panel.classList.remove(c.cls));
+        panel.classList.add(getColourClass(editorDraft.colour));
+
+        document.getElementById('editor-pinned-badge').classList.toggle('hidden', !editorDraft.pinned);
+
+        const folder = state.folders.find(f => f.id === editorDraft.folderId);
+        const folderPill = document.getElementById('editor-folder-pill');
+        if (folder) {
+          folderPill.textContent = folder.name;
+          folderPill.classList.remove('hidden');
+        } else {
+          folderPill.classList.add('hidden');
+        }
+
+        const labelPills = document.getElementById('editor-label-pills');
+        const activeLabels = (editorDraft.labelIds || [])
+          .map(lid => state.labels.find(l => l.id === lid))
+          .filter(Boolean);
+        labelPills.innerHTML = activeLabels
+          .map(l => { const c = labelColour(l); return `<span class="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap" style="background:${state.theme === 'dark' ? c.dark : c.light};color:var(--text-main);">#${escapeHtml(l.name)}</span>`; })
+          .join('');
+      }
+
+      function renderEditorChecklist() {
+        const section = document.getElementById('editor-checklist-section');
+        const list = document.getElementById('editor-checklist-items');
+        const items = editorDraft.checklist || [];
+
+        if (items.length === 0) {
+          section.classList.add('hidden');
+          list.innerHTML = '';
+          return;
+        }
+
+        section.classList.remove('hidden');
+        list.innerHTML = items.map(item => `
+          <div class="checklist-row flex items-center gap-2.5 group" data-check-id="${item.id}">
+            <input type="checkbox" ${item.done ? 'checked' : ''} class="shrink-0" aria-label="Toggle item" />
+            <input
+              type="text"
+              value="${escapeHtml(item.text)}"
+              placeholder="Checklist item"
+              class="flex-1 bg-transparent text-sm text-main focus:outline-none ${item.done ? 'checklist-done' : ''}"
+            />
+            <button type="button" class="remove-check-btn opacity-0 group-hover:opacity-100 p-1 rounded text-muted hover:text-main" aria-label="Remove item">
+              <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `).join('');
+
+        list.querySelectorAll('.checklist-row').forEach(row => {
+          const cid = row.getAttribute('data-check-id');
+          const checkbox = row.querySelector('input[type="checkbox"]');
+          const textInput = row.querySelector('input[type="text"]');
+          const rmBtn = row.querySelector('.remove-check-btn');
+
+          checkbox.addEventListener('change', () => {
+            const target = editorDraft.checklist.find(c => c.id === cid);
+            if (!target) return;
+            target.done = checkbox.checked;
+            // Completed items stay in their original position with strikethrough
+            textInput.classList.toggle('checklist-done', target.done);
+            scheduleAutoSave();
+          });
+
+          textInput.addEventListener('input', () => {
+            const target = editorDraft.checklist.find(c => c.id === cid);
+            if (!target) return;
+            target.text = textInput.value;
+            scheduleAutoSave();
+          });
+
+          textInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addChecklistItem();
+            }
+          });
+
+          rmBtn.addEventListener('click', () => {
+            editorDraft.checklist = editorDraft.checklist.filter(c => c.id !== cid);
+            renderEditorChecklist();
+            scheduleAutoSave();
+          });
+        });
+
+        refreshIcons();
+      }
+
+      function addChecklistItem() {
+        editorDraft.checklist = editorDraft.checklist || [];
+        const newId = uid('c');
+        editorDraft.checklist.push({ id: newId, text: '', done: false });
+        renderEditorChecklist();
+        const input = document.querySelector(`[data-check-id="${newId}"] input[type="text"]`);
+        if (input) input.focus();
+        scheduleAutoSave();
+      }
+
+      function renderEditorLinks() {
+        const section = document.getElementById('editor-links-section');
+        const list = document.getElementById('editor-links-list');
+        const links = editorDraft.links || [];
+
+        if (links.length === 0) {
+          section.classList.add('hidden');
+          list.innerHTML = '';
+          return;
+        }
+
+        section.classList.remove('hidden');
+        list.innerHTML = links.map(lk => `
+          <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">
+            <div class="min-w-0">
+              <div class="text-xs font-medium text-main truncate">${escapeHtml(lk.title || lk.domain)}</div>
+              <div class="text-[11px] text-muted truncate">${escapeHtml(lk.domain)}${lk.metadataPending ? ' · title pending' : ''}</div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" data-edit-link="${lk.id}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Edit displayed title"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+              <a href="${escapeHtml(lk.url)}" target="_blank" rel="noopener noreferrer" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Open website">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </a>
+              <button type="button" data-remove-link="${lk.id}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+        list.querySelectorAll('[data-edit-link]').forEach(btn => btn.addEventListener('click', () => {
+          const link = (editorDraft.links || []).find(l => l.id === btn.getAttribute('data-edit-link'));
+          if (!link) return;
+          const nextTitle = window.prompt('Displayed website title', link.title || link.domain);
+          if (nextTitle === null) return;
+          const cleaned = nextTitle.trim();
+          if (!cleaned) { showToast('Website title cannot be empty'); return; }
+          link.title = cleaned; link.titleLocked = true; link.metadataPending = false;
+          renderEditorLinks(); scheduleAutoSave();
+        }));
+        list.querySelectorAll('[data-remove-link]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const lid = btn.getAttribute('data-remove-link');
+            editorDraft.links = editorDraft.links.filter(l => l.id !== lid);
+            renderEditorLinks();
+            scheduleAutoSave();
+          });
+        });
+
+        refreshIcons();
+      }
+
+      function renderEditorAttachments() {
+        const section = document.getElementById('editor-attachments-section');
+        const list = document.getElementById('editor-attachments-list');
+        const attachments = editorDraft.attachments || [];
+        if (!attachments.length) { section.classList.add('hidden'); list.innerHTML = ''; return; }
+        section.classList.remove('hidden');
+        list.innerHTML = attachments.map(att => `
+          <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">
+            <button type="button" data-preview-att="${att.id}" class="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80">
+              <span class="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0 text-muted"><i data-lucide="${['PNG','JPG','JPEG','WEBP','GIF','SVG'].includes(att.type) ? 'image' : 'file-text'}" class="w-3.5 h-3.5"></i></span>
+              <span class="min-w-0"><span class="block text-xs font-medium text-main truncate">${escapeHtml(att.name)}</span><span class="block text-[11px] text-muted">${escapeHtml(att.type)} · ${escapeHtml(att.size)}</span></span>
+            </button>
+            <button type="button" data-remove-att="${att.id}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main shrink-0" title="More attachment options" aria-label="More options for ${escapeHtml(att.name)}"><i data-lucide="more-vertical" class="w-3.5 h-3.5"></i></button>
+          </div>
+        `).join('');
+        list.querySelectorAll('[data-preview-att]').forEach(btn => btn.addEventListener('click', () => openAttachmentPreview(btn.getAttribute('data-preview-att'))));
+        list.querySelectorAll('[data-remove-att]').forEach(btn => btn.addEventListener('click', () => {
+          const aid = btn.getAttribute('data-remove-att');
+          const att = editorDraft.attachments.find(a => a.id === aid);
+          openConfirm({
+            title: 'Remove attachment?', message: `Remove “${att ? att.name : 'this file'}” from the note?`, destructive: true,
+            onConfirm: () => { editorDraft.attachments = editorDraft.attachments.filter(a => a.id !== aid); renderEditorAttachments(); scheduleAutoSave(); }
+          });
+        }));
+        refreshIcons();
+      }
+
+      let previewObjectUrl = null;
+      function openAttachmentPreview(attachmentId) {
+        const attachment = (editorDraft && editorDraft.attachments || []).find(a => a.id === attachmentId);
+        if (!attachment) return;
+        const blob = attachment.blob || attachment.fileBlob;
+        if (!(blob instanceof Blob)) { showToast('This older attachment has no saved file data. Please attach the file again.'); return; }
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = URL.createObjectURL(blob);
+        const mime = attachment.mimeType || blob.type || 'application/octet-stream';
+        document.getElementById('file-preview-title').textContent = attachment.name;
+        const download = document.getElementById('file-preview-download');
+        download.href = previewObjectUrl; download.download = attachment.name;
+        const external = document.getElementById('file-preview-external'); external.href = previewObjectUrl;
+        const body = document.getElementById('file-preview-body');
+        if (mime.startsWith('image/')) {
+          body.innerHTML = `<img src="${previewObjectUrl}" alt="${escapeHtml(attachment.name)}" class="max-w-full max-h-full object-contain p-3" />`;
+        } else if (mime === 'application/pdf' || attachment.type === 'PDF') {
+          body.innerHTML = `<iframe title="${escapeHtml(attachment.name)}" src="${previewObjectUrl}" class="w-full h-full border-0 bg-white"></iframe>`;
+        } else {
+          body.innerHTML = `<div class="p-8 text-center max-w-md"><i data-lucide="file" class="w-10 h-10 mx-auto mb-3 text-muted"></i><div class="text-sm font-medium">Preview isn't available for this file type.</div><div class="text-xs text-muted mt-2">Download the file or open it in another application.</div></div>`;
+        }
+        document.getElementById('file-preview-overlay').classList.remove('hidden');
+        refreshIcons();
+      }
+      function closeAttachmentPreview() {
+        document.getElementById('file-preview-overlay').classList.add('hidden');
+        document.getElementById('file-preview-body').innerHTML = '';
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+      }
+
+      function renderEditorMoreMenu() {
+        renderSwatches('editor-colour-swatches', editorDraft.colour, colourId => {
+          editorDraft.colour = colourId;
+          applyEditorVisuals();
+          renderEditorMoreMenu();
+          scheduleAutoSave();
+        });
+
+        document.getElementById('more-pin-label').textContent = editorDraft.pinned ? 'Unpin note' : 'Pin note';
+        document.getElementById('more-format-state').textContent = formattingBarOpen ? 'On' : 'Off';
+        document.getElementById('more-archive-label').textContent = editorDraft.archived ? 'Restore from Archive' : 'Archive';
+        document.getElementById('more-delete-label').textContent = editorDraft.trashed ? 'Restore from Trash' : 'Delete';
+
+        const folderSel = document.getElementById('editor-folder-select');
+        folderSel.innerHTML = `<option value="">Unfiled</option>` +
+          state.folders.map(f => `<option value="${f.id}" ${editorDraft.folderId === f.id ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('');
+
+        const labelsWrap = document.getElementById('editor-labels-checklist');
+        labelsWrap.innerHTML = state.labels.map(l => {
+          const active = (editorDraft.labelIds || []).includes(l.id);
+          return `
+            <button type="button" data-toggle-label="${l.id}" class="px-2 py-0.5 rounded-full text-[11px] border transition-colors" style="background:${active ? (state.theme === 'dark' ? labelColour(l).dark : labelColour(l).light) : 'transparent'};border-color:${active ? labelColour(l).swatch : 'var(--border-muted)'};color:var(--text-main);">
+              #${escapeHtml(l.name)}
+            </button>
+          `;
+        }).join('');
+
+        labelsWrap.querySelectorAll('[data-toggle-label]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const lid = btn.getAttribute('data-toggle-label');
+            editorDraft.labelIds = editorDraft.labelIds || [];
+            if (editorDraft.labelIds.includes(lid)) {
+              editorDraft.labelIds = editorDraft.labelIds.filter(x => x !== lid);
+            } else {
+              editorDraft.labelIds.push(lid);
+            }
+            applyEditorVisuals();
+            renderEditorMoreMenu();
+            scheduleAutoSave();
+          });
+        });
+      }
+
+      // --- CONFIRMATION MODAL ---
+      let activeConfirmCallback = null;
+
+      function openConfirm({ title, message, extraHtml, destructive, onOpen, onConfirm }) {
+        document.getElementById('confirm-title').textContent = title;
+        document.getElementById('confirm-message').textContent = message;
+        const extraEl = document.getElementById('confirm-extra');
+        if (extraHtml) {
+          extraEl.innerHTML = extraHtml;
+          extraEl.classList.remove('hidden');
+        } else {
+          extraEl.innerHTML = '';
+          extraEl.classList.add('hidden');
+        }
+
+        const okBtn = document.getElementById('confirm-ok-btn');
+        if (destructive) {
+          okBtn.style.backgroundColor = 'var(--accent-clay)';
+        } else {
+          okBtn.style.backgroundColor = '';
+        }
+
+        activeConfirmCallback = onConfirm;
+        document.getElementById('confirm-overlay').classList.remove('hidden');
+        if (typeof onOpen === 'function') onOpen();
+      }
+
+      function closeConfirm() {
+        activeConfirmCallback = null;
+        document.getElementById('confirm-overlay').classList.add('hidden');
+      }
+
+      function toggleTheme() {
+        state.theme = state.theme === 'dark' ? 'light' : 'dark';
+        saveState();
+        applyTheme();
+        if (currentView === 'settings') renderMain();
+      }
+
+      function renderAll() {
+        renderNav();
+        renderMain();
+        renderBulkToolbar();
+        refreshIcons();
+      }
+
+      // --- STATIC EVENT LISTENERS ---
+      document.getElementById('open-drawer-btn').addEventListener('click', openMobileDrawer);
+      document.getElementById('close-drawer-btn').addEventListener('click', closeMobileDrawer);
+      document.getElementById('mobile-drawer-backdrop').addEventListener('click', closeMobileDrawer);
+      document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
+
+      const searchInput = document.getElementById('search-input');
+      const clearSearchBtn = document.getElementById('clear-search-btn');
+      let searchDebounceTimer = null;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchDebounceTimer);
+        clearSearchBtn.classList.toggle('hidden', !searchInput.value);
+        if (selectionMode) exitSelectionMode();
+        const query = searchInput.value;
+        searchDebounceTimer = setTimeout(() => {
+          searchQuery = query;
+          renderMain();
+          refreshIcons();
+        }, 90);
+      });
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearTimeout(searchDebounceTimer);
+        searchQuery = '';
+        clearSearchBtn.classList.add('hidden');
+        renderMain();
+        refreshIcons();
+      });
+
+      document.getElementById('bulk-exit-btn').addEventListener('click', () => {
+        exitSelectionMode();
+        renderAll();
+      });
+
+      // Editor events
+      document.getElementById('editor-title').addEventListener('input', scheduleAutoSave);
+      document.getElementById('editor-body').addEventListener('input', scheduleAutoSave);
+      document.getElementById('editor-done-btn').addEventListener('click', closeEditor);
+      document.getElementById('editor-overlay').addEventListener('click', e => {
+        if (e.target.id === 'editor-overlay') closeEditor();
+      });
+
+      document.getElementById('editor-attach-btn').addEventListener('click', () => {
+        document.getElementById('attachment-file-input').click();
+      });
+      document.getElementById('attachment-file-input').addEventListener('change', e => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length || !editorDraft) return;
+        editorDraft.attachments = editorDraft.attachments || [];
+        files.forEach(file => {
+          const ext = (file.name.split('.').pop() || 'FILE').toUpperCase();
+          editorDraft.attachments.push({
+            id: uid('a'), name: file.name, type: ext, size: formatFileSize(file.size),
+            sizeBytes: file.size, mimeType: file.type || 'application/octet-stream', blob: file
+          });
+        });
+        e.target.value = '';
+        renderEditorAttachments();
+        scheduleAutoSave();
+      });
+
+      document.getElementById('editor-link-btn').addEventListener('click', () => {
+        const bar = document.getElementById('add-link-bar');
+        bar.classList.toggle('hidden');
+        if (!bar.classList.contains('hidden')) {
+          document.getElementById('link-url-input').focus();
+        }
+      });
+      document.getElementById('cancel-link-btn').addEventListener('click', () => {
+        document.getElementById('add-link-bar').classList.add('hidden');
+      });
+      document.getElementById('save-link-btn').addEventListener('click', async () => {
+        const urlInput = document.getElementById('link-url-input');
+        const titleInput = document.getElementById('link-title-input');
+        let rawUrl = urlInput.value.trim();
+        if (!rawUrl || !editorDraft) return;
+        if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
+        let parsedUrl;
+        try { parsedUrl = new URL(rawUrl); if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Unsupported URL'); }
+        catch (_) { showToast('Enter a valid website URL'); return; }
+        const domain = extractDomain(rawUrl);
+        const manualTitle = titleInput.value.trim();
+        const link = { id: uid('lk'), title: manualTitle || domain, url: rawUrl, domain, titleLocked: Boolean(manualTitle), metadataPending: !manualTitle };
+        editorDraft.links = editorDraft.links || [];
+        editorDraft.links.push(link);
+        urlInput.value = ''; titleInput.value = '';
+        document.getElementById('add-link-bar').classList.add('hidden');
+        renderEditorLinks(); scheduleAutoSave();
+        if (!manualTitle) fetchLinkMetadata(editorDraft.id, link.id, rawUrl);
+      });
+
+      document.getElementById('editor-more-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        const menu = document.getElementById('editor-more-menu');
+        menu.classList.toggle('hidden');
+        if (!menu.classList.contains('hidden')) {
+          renderEditorMoreMenu();
+        }
+      });
+
+      document.addEventListener('click', e => {
+        const menu = document.getElementById('editor-more-menu');
+        if (!menu.classList.contains('hidden') && !e.target.closest('#editor-more-menu') && !e.target.closest('#editor-more-btn')) {
+          menu.classList.add('hidden');
+        }
+      });
+
+      document.getElementById('more-pin-btn').addEventListener('click', () => {
+        if (!editorDraft) return;
+        editorDraft.pinned = !editorDraft.pinned;
+        applyEditorVisuals();
+        renderEditorMoreMenu();
+        scheduleAutoSave();
+      });
+
+      document.getElementById('more-format-btn').addEventListener('click', () => {
+        formattingBarOpen = !formattingBarOpen;
+        document.getElementById('formatting-bar').classList.toggle('hidden', !formattingBarOpen);
+        document.getElementById('more-format-state').textContent = formattingBarOpen ? 'On' : 'Off';
+        document.getElementById('editor-more-menu').classList.add('hidden');
+      });
+
+      document.querySelectorAll('.fmt-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cmd = btn.getAttribute('data-fmt');
+          document.getElementById('editor-body').focus();
+          document.execCommand(cmd, false, null);
+          scheduleAutoSave();
+        });
+      });
+
+      document.getElementById('add-checklist-item-btn').addEventListener('click', addChecklistItem);
+      document.getElementById('inline-add-check-btn').addEventListener('click', addChecklistItem);
+
+      document.getElementById('editor-folder-select').addEventListener('change', e => {
+        if (!editorDraft) return;
+        editorDraft.folderId = e.target.value;
+        applyEditorVisuals();
+        scheduleAutoSave();
+      });
+
+      document.getElementById('more-duplicate-btn').addEventListener('click', () => {
+        if (!editorDraft || isDraftEmpty()) return;
+        persistEditorDraft();
+        const maxOrder = state.notes.reduce((m, n) => Math.max(m, n.order || 0), 0);
+        const copy = cloneData(editorDraft);
+        copy.id = uid('n');
+        copy.title = copy.title ? copy.title + ' (copy)' : '';
+        copy.order = maxOrder + 1;
+        copy.createdAt = Date.now();
+        copy.folderId = '';
+        copy.pinned = false;
+        copy.archived = false;
+        copy.trashed = false;
+        copy.checklist = (copy.checklist || []).map(item => ({ ...item, id: uid('c') }));
+        copy.attachments = (copy.attachments || []).map(att => ({ ...att, id: uid('a') }));
+        copy.links = (copy.links || []).map(link => ({ ...link, id: uid('lk') }));
+        state.notes.push(copy);
+        saveState();
+        document.getElementById('editor-more-menu').classList.add('hidden');
+        renderAll();
+        showToast('Note duplicated');
+      });
+
+      document.getElementById('more-archive-btn').addEventListener('click', () => {
+        if (!editorDraft) return;
+        editorDraft.archived = !editorDraft.archived;
+        if (editorDraft.archived) editorDraft.trashed = false;
+        persistEditorDraft();
+        const wasArchived = editorDraft.archived;
+        closeEditor();
+        showToast(wasArchived ? 'Note archived' : 'Note restored to Home');
+      });
+
+      document.getElementById('more-delete-btn').addEventListener('click', () => {
+        if (!editorDraft) return;
+        if (editorDraft.trashed) {
+          editorDraft.trashed = false;
+          if (editorDraft.folderId && !state.folders.some(f => f.id === editorDraft.folderId)) editorDraft.folderId = '';
+          persistEditorDraft(); closeEditor(); showToast('Note restored');
+        } else {
+          editorDraft.title = document.getElementById('editor-title').value;
+          editorDraft.bodyHtml = document.getElementById('editor-body').innerHTML;
+          const noteTitle = editorDraft.title.trim() || 'Untitled note';
+          openConfirm({
+            title: 'Move note to Trash?',
+            message: `“${noteTitle}” will move to Trash. You can restore it later.`,
+            destructive: true,
+            onConfirm: () => {
+              if (!editorDraft) return;
+              editorDraft.trashed = true; editorDraft.archived = false;
+              persistEditorDraft(); closeEditor(); showToast('Moved to Trash');
+            }
+          });
+        }
+      });
+
+      // Confirm modal buttons
+      document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirm);
+      document.getElementById('confirm-overlay').addEventListener('click', e => {
+        if (e.target.id === 'confirm-overlay') closeConfirm();
+      });
+      document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+        const cb = activeConfirmCallback;
+        closeConfirm();
+        if (typeof cb === 'function') cb();
+      });
+
+      // Attachment preview controls.
+      document.getElementById('file-preview-close').addEventListener('click', closeAttachmentPreview);
+      document.getElementById('file-preview-overlay').addEventListener('click', e => { if (e.target.id === 'file-preview-overlay') closeAttachmentPreview(); });
+
+      // Retry pending link titles when connectivity returns.
+      window.addEventListener('online', retryPendingLinkMetadata);
+
+      // PWA install prompt (Chrome/Edge); iOS users can use Share > Add to Home Screen.
+      window.addEventListener('beforeinstallprompt', event => {
+        event.preventDefault(); installPromptEvent = event;
+        if (currentView === 'settings') renderMain();
+      });
+      window.addEventListener('appinstalled', () => { installPromptEvent = null; showToast('Memory installed'); });
+      if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(error => console.warn('Service worker registration failed:', error)));
+      }
+
+      // Escape key closes modals or selection mode.
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          if (!document.getElementById('file-preview-overlay').classList.contains('hidden')) closeAttachmentPreview();
+          else if (!document.getElementById('confirm-overlay').classList.contains('hidden')) closeConfirm();
+          else if (!document.getElementById('editor-overlay').classList.contains('hidden')) closeEditor();
+          else if (selectionMode) { exitSelectionMode(); renderAll(); }
+        }
+      });
+
+      // Init after loading the IndexedDB record (or migrating legacy data).
+      initializeStorage().then(() => {
+        applyTheme();
+        renderAll();
+        retryPendingLinkMetadata();
+      });
+    })();
+  </script>
+</body>
+</html>
