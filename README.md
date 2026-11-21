@@ -5,6 +5,8 @@
 Memory is a personal notes application focused on effortless capture, simple organisation, and dependable retrieval. It is being developed as a local-first, offline-capable app with a calm, minimal interface.
 
 > **Project status:** Personal project in active prototyping. The current reference build is **Memory.latest**. It is not yet a production-ready release.
+>
+> **Repository note:** This initial repository setup commit contains project documentation and repository hygiene files. The `Memory.latest` application bundle (HTML, PWA manifest, service worker, and icons) has not yet been committed here.
 
 ## Product principles
 
