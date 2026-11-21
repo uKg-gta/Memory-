@@ -1149,13 +1149,19 @@
         const folderCards = state.folders.map(f => {
           const count = state.notes.filter(n => !n.archived && !n.trashed && n.folderId === f.id).length;
           return `
-            <div class="p-4 rounded-2xl bg-elevated border border-muted flex items-center justify-between gap-3" style="box-shadow: var(--shadow-card);">
+            <div class="relative p-4 rounded-2xl bg-elevated border border-muted flex items-center justify-between gap-3" style="box-shadow: var(--shadow-card);">
               <button type="button" data-open-folder="${f.id}" class="min-w-0 flex-1 text-left flex items-center gap-3">
                 <i data-lucide="folder" class="w-5 h-5 text-muted shrink-0"></i>
                 <span class="font-medium text-sm truncate">${escapeHtml(f.name)}</span>
                 <span class="text-xs text-muted shrink-0">${count}</span>
               </button>
-              <button type="button" data-delete-folder="${f.id}" class="p-2 rounded-lg hover:bg-surface text-muted" title="Delete folder" aria-label="Delete folder ${escapeHtml(f.name)}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+              <div class="relative shrink-0">
+                <button type="button" data-folder-menu="${f.id}" class="p-2 rounded-lg hover:bg-surface text-muted" title="Folder options" aria-label="Options for folder ${escapeHtml(f.name)}" aria-expanded="false"><i data-lucide="more-vertical" class="w-4 h-4"></i></button>
+                <div data-folder-menu-panel="${f.id}" class="hidden absolute right-0 top-full mt-1 z-20 w-40 rounded-xl bg-elevated border border-muted p-1.5 shadow-lg">
+                  <button type="button" data-edit-folder="${f.id}" class="w-full px-2.5 py-2 rounded-lg hover:bg-surface text-left text-xs">Edit folder name</button>
+                  <button type="button" data-delete-folder="${f.id}" class="w-full px-2.5 py-2 rounded-lg hover:bg-surface text-left text-xs text-muted">Delete folder</button>
+                </div>
+              </div>
             </div>
           `;
         }).join('');
@@ -1179,6 +1185,36 @@
           activeFolderId = btn.getAttribute('data-open-folder');
           renderAll();
         }));
+        container.querySelectorAll('[data-folder-menu]').forEach(btn => btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const folderId = btn.getAttribute('data-folder-menu');
+          const panel = container.querySelector(`[data-folder-menu-panel="${folderId}"]`);
+          const willOpen = panel && panel.classList.contains('hidden');
+          container.querySelectorAll('[data-folder-menu-panel]').forEach(menu => menu.classList.add('hidden'));
+          container.querySelectorAll('[data-folder-menu]').forEach(menuBtn => menuBtn.setAttribute('aria-expanded', 'false'));
+          if (panel && willOpen) {
+            panel.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+          }
+        }));
+        container.querySelectorAll('[data-edit-folder]').forEach(btn => btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const folderId = btn.getAttribute('data-edit-folder');
+          const folder = state.folders.find(f => f.id === folderId);
+          if (!folder) return;
+          const nextName = window.prompt('Rename folder', folder.name);
+          if (nextName === null) return;
+          const cleaned = nextName.trim();
+          if (!cleaned) { showToast('Folder name cannot be empty'); return; }
+          if (state.folders.some(f => f.id !== folderId && f.name.toLowerCase() === cleaned.toLowerCase())) {
+            showToast('A folder with that name already exists');
+            return;
+          }
+          if (cleaned === folder.name) return;
+          folder.name = cleaned;
+          saveState(); renderAll(); showToast('Folder renamed');
+        }));
+
         container.querySelectorAll('[data-delete-folder]').forEach(btn => btn.addEventListener('click', e => {
           e.stopPropagation();
           const folderId = btn.getAttribute('data-delete-folder');
