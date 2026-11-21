@@ -382,12 +382,12 @@
       <div class="relative px-4 md:px-6 py-3 border-t border-muted flex items-center justify-between gap-2">
         <div class="flex items-center gap-1">
           <input id="attachment-file-input" type="file" multiple class="hidden" />
-          <button id="editor-attach-btn" type="button" class="px-2.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-sm text-main inline-flex items-center gap-1.5" title="Attach file">
+          <button id="editor-attach-btn" type="button" aria-label="Attach files" class="px-2.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-sm text-main inline-flex items-center gap-1.5" title="Attach file">
             <i data-lucide="paperclip" class="w-4 h-4"></i>
             <span class="hidden sm:inline text-xs font-medium">Attachment</span>
           </button>
 
-          <button id="editor-link-btn" type="button" class="px-2.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-sm text-main inline-flex items-center gap-1.5" title="Add website link">
+          <button id="editor-link-btn" type="button" aria-label="Add website link" class="px-2.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-sm text-main inline-flex items-center gap-1.5" title="Add website link">
             <i data-lucide="link-2" class="w-4 h-4"></i>
             <span class="hidden sm:inline text-xs font-medium">Add link</span>
           </button>
@@ -671,7 +671,7 @@
       const DB_STORE = 'appState';
       let dbPromise = null;
       let persistenceQueue = Promise.resolve();
-      let editorReturnFocus = null, drawerReturnFocus = null, confirmReturnFocus = null, previewReturnFocus = null;
+      let editorReturnFocus = null, editorReturnNoteId = null, drawerReturnFocus = null, confirmReturnFocus = null, previewReturnFocus = null;
 
       function openDatabase() {
         if (dbPromise) return dbPromise;
@@ -1990,6 +1990,7 @@
         renderEditorMoreMenu();
 
         editorReturnFocus = document.activeElement;
+        editorReturnNoteId = editorReturnFocus && editorReturnFocus.getAttribute ? editorReturnFocus.getAttribute('data-note-id') : null;
         document.getElementById('editor-overlay').classList.remove('hidden');
         document.getElementById('editor-dialog-title').textContent = titleEl.value.trim() || 'Untitled note';
         (noteId ? titleEl : bodyEl).focus();
@@ -2061,8 +2062,13 @@
         document.getElementById('editor-more-menu').classList.add('hidden');
         document.getElementById('editor-more-btn').setAttribute('aria-expanded', 'false');
         renderAll();
-        if (editorReturnFocus && editorReturnFocus.focus) editorReturnFocus.focus();
+        const returnCard = editorReturnNoteId ? document.querySelector('[data-note-id="' + editorReturnNoteId + '"]') : null;
+        if (returnCard) returnCard.focus();
+        else if (editorReturnFocus && editorReturnFocus.isConnected && editorReturnFocus.focus) editorReturnFocus.focus();
+        else if (document.getElementById('quick-capture-btn')) document.getElementById('quick-capture-btn').focus();
+        else document.getElementById('main-content').focus();
         editorReturnFocus = null;
+        editorReturnNoteId = null;
       }
 
       function applyEditorVisuals() {
@@ -2621,6 +2627,11 @@
         if (e.key === 'Escape') {
           if (visible('file-preview-overlay')) closeAttachmentPreview();
           else if (visible('confirm-overlay')) closeConfirm();
+          else if (visible('editor-overlay') && !document.getElementById('editor-more-menu').classList.contains('hidden')) {
+            document.getElementById('editor-more-menu').classList.add('hidden');
+            document.getElementById('editor-more-btn').setAttribute('aria-expanded', 'false');
+            document.getElementById('editor-more-btn').focus();
+          }
           else if (visible('editor-overlay')) closeEditor();
           else if (drawerOpen) closeMobileDrawer();
           else if (selectionMode) { exitSelectionMode(); renderAll(); }
