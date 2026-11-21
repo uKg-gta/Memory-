@@ -880,7 +880,7 @@
         const html = items.map(item => {
           const isActive = currentView === item.id;
           return `
-            <button type="button" data-nav="${item.id}" class="nav-item ${isActive ? 'active' : ''} w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-main hover:bg-surface/70 transition-colors">
+            <button type="button" data-nav="${item.id}" aria-current="${isActive ? 'page' : 'false'}" class="nav-item ${isActive ? 'active' : ''} w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-main hover:bg-surface/70 transition-colors">
               <span class="flex items-center gap-3">
                 <i data-lucide="${item.icon}" class="w-4 h-4 text-muted"></i>
                 <span>${item.label}</span>
@@ -1140,6 +1140,9 @@
         return `
           <article
             data-note-id="${note.id}"
+            role="group"
+            tabindex="0"
+            aria-label="Note: ${escapeHtml(displayTitle)}. Press Enter to open."
             draggable="${canDrag ? 'true' : 'false'}"
             class="note-card ${getColourClass(note.colour)} ${isSelected ? 'is-selected' : ''} relative p-3.5 flex flex-col justify-between cursor-pointer"
           >
@@ -1569,6 +1572,15 @@
           card.addEventListener('pointerup', cancelPress);
           card.addEventListener('pointerleave', cancelPress);
           card.addEventListener('pointercancel', cancelPress);
+
+          card.addEventListener('keydown', e => {
+            if (e.target !== card || e.target.closest('.drag-handle')) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (selectionMode) toggleSelection(id);
+              else openEditor(id);
+            }
+          });
 
           card.addEventListener('click', e => {
             if (e.target.closest('.drag-handle')) return;
@@ -2092,11 +2104,12 @@
         section.classList.remove('hidden');
         list.innerHTML = items.map(item => `
           <div class="checklist-row flex items-center gap-2.5 group" data-check-id="${item.id}">
-            <input type="checkbox" ${item.done ? 'checked' : ''} class="shrink-0" aria-label="Toggle item" />
+            <input type="checkbox" ${item.done ? 'checked' : ''} class="shrink-0" aria-label="${item.done ? 'Mark incomplete' : 'Mark complete'}: ${escapeHtml(item.text || 'Checklist item')}" />
             <input
               type="text"
               value="${escapeHtml(item.text)}"
               placeholder="Checklist item"
+              aria-label="Checklist item text"
               class="flex-1 bg-transparent text-sm text-main focus:outline-none ${item.done ? 'checklist-done' : ''}"
             />
             <button type="button" class="remove-check-btn opacity-0 group-hover:opacity-100 p-1 rounded text-muted hover:text-main" aria-label="Remove item">
@@ -2173,11 +2186,11 @@
               <div class="text-[11px] text-muted truncate">${escapeHtml(lk.domain)}${lk.metadataPending ? ' · title pending' : ''}</div>
             </div>
             <div class="flex items-center gap-1 shrink-0">
-              <button type="button" data-edit-link="${lk.id}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Edit displayed title"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-              <a href="${escapeHtml(lk.url)}" target="_blank" rel="noopener noreferrer" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Open website">
+              <button type="button" data-edit-link="${lk.id}" aria-label="Edit title for ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Edit displayed title"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+              <a href="${escapeHtml(lk.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(lk.title || lk.domain)} in a new tab" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Open website">
                 <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
               </a>
-              <button type="button" data-remove-link="${lk.id}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link">
+              <button type="button" data-remove-link="${lk.id}" aria-label="Remove ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link">
                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
               </button>
             </div>
@@ -2600,15 +2613,16 @@
       // Escape key closes modals or selection mode.
       document.addEventListener('keydown', e => {
         const visible = id => !document.getElementById(id).classList.contains('hidden');
+        const drawerOpen = document.getElementById('mobile-drawer').getAttribute('aria-hidden') === 'false';
         const activeModal = visible('file-preview-overlay') ? document.querySelector('#file-preview-overlay [role="dialog"]')
           : visible('confirm-overlay') ? document.querySelector('#confirm-overlay [role="alertdialog"]')
           : visible('editor-overlay') ? document.getElementById('editor-panel')
-          : visible('mobile-drawer') ? document.getElementById('mobile-drawer') : null;
+          : drawerOpen ? document.getElementById('mobile-drawer') : null;
         if (e.key === 'Escape') {
           if (visible('file-preview-overlay')) closeAttachmentPreview();
           else if (visible('confirm-overlay')) closeConfirm();
           else if (visible('editor-overlay')) closeEditor();
-          else if (visible('mobile-drawer')) closeMobileDrawer();
+          else if (drawerOpen) closeMobileDrawer();
           else if (selectionMode) { exitSelectionMode(); renderAll(); }
           return;
         }
