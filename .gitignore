@@ -1,0 +1,34 @@
+# Secrets and environment configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Personal app data and exported backups
+backups/
+exports/
+*.memory-backup
+*.memory-backup.json
+*.backup
+*.bak
+user-data/
+attachments/
+*.sqlite
+*.db
+
+# Local development
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Dependencies and build output (if a build toolchain is added later)
+node_modules/
+dist/
+build/
+coverage/
