@@ -5,8 +5,6 @@
 Memory is a personal notes application focused on effortless capture, simple organisation, and dependable retrieval. It is being developed as a local-first, offline-capable app with a calm, minimal interface.
 
 > **Project status:** Personal project in active prototyping. The current reference build is **Memory.latest**. It is not yet a production-ready release.
->
-> **Repository note:** This initial repository setup commit contains project documentation and repository hygiene files. The `Memory.latest` application bundle (HTML, PWA manifest, service worker, and icons) has not yet been committed here.
 
 ## Product principles
 
@@ -18,7 +16,7 @@ Memory is a personal notes application focused on effortless capture, simple org
 
 ## Current prototype
 
-The current prototype is a standalone web app with:
+The repository includes the current standalone web-app prototype:
 
 - Responsive home board and note editor
 - Light and dark themes
@@ -30,6 +28,17 @@ The current prototype is a standalone web app with:
 - PWA manifest and service-worker support files
 
 Prototype capabilities and browser/platform support still require real-device testing. See [docs/architecture.md](docs/architecture.md) and [docs/product-specification.md](docs/product-specification.md) for scope and decisions.
+
+## Repository layout
+
+- `index.html` — application entry point
+- `manifest.webmanifest` — installable PWA metadata
+- `sw.js` — service worker and offline caching
+- `icon-192.png`, `icon-512.png` — app icons
+- `docs/` — product vision, specification, and architecture
+- `CHANGELOG.md` — notable project changes
+
+The uploaded source archive is retained as a convenient snapshot; the individual application files above are the working repository source.
 
 ## Development roadmap
 
