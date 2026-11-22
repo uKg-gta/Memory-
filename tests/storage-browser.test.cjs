@@ -45,6 +45,9 @@ test('IndexedDB adapter persists account-scoped state and Blob attachments', asy
       await storage.write('account-a', { ...accountA, theme: 'light' });
       const updatedA = await storage.read('account-a');
       const blobText = await updatedA.notes[0].attachments[0].blob.text();
+      await storage.remove('account-b');
+      const removedB = await storage.read('account-b');
+      const retainedA = await storage.read('account-a');
 
       return {
         missing,
@@ -54,7 +57,9 @@ test('IndexedDB adapter persists account-scoped state and Blob attachments', asy
         firstBId: firstB.notes[0].id,
         updatedTheme: updatedA.theme,
         blobText,
-        blobType: updatedA.notes[0].attachments[0].blob.type
+        blobType: updatedA.notes[0].attachments[0].blob.type,
+        removedB,
+        retainedATheme: retainedA.theme
       };
     });
 
@@ -66,6 +71,8 @@ test('IndexedDB adapter persists account-scoped state and Blob attachments', asy
     assert.equal(result.updatedTheme, 'light');
     assert.equal(result.blobText, 'attachment bytes');
     assert.equal(result.blobType, 'text/plain');
+    assert.equal(result.removedB, null);
+    assert.equal(result.retainedATheme, 'light');
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
