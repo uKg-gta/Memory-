@@ -43,6 +43,9 @@ for (const [engineName, engine] of Object.entries({ chromium, firefox, webkit })
       const page = await context.newPage();
       await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
       await page.goto(url + '/', { waitUntil: 'domcontentloaded' });
+      // This suite checks layout only; keep the workspace visible even when the
+      // asynchronous auth bootstrap re-applies its signed-out gate.
+      await page.addStyleTag({ content: '#app { display: flex !important; } #auth-gate { display: none !important; }' });
       await page.evaluate(() => document.body.classList.remove('auth-locked'));
 
       for (const theme of ['light', 'dark']) {
