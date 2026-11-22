@@ -1,5 +1,5 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v22';
+const VERSION = 'memory-pwa-v23';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
@@ -9,7 +9,8 @@ const SHELL_FILES = [
   './icon-192.png',
   './icon-512.png',
   './vendor/purify.min.js',
-  './note-sanitizer.js'
+  './note-sanitizer.js',
+  './note-sync-core.js'
 ];
 const SHELL_ASSETS = new Set(SHELL_FILES.map(path => new URL(path, self.registration.scope).href));
 
