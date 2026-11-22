@@ -278,7 +278,7 @@ test('attachment menu supports positioning, keyboard access, preview, download, 
     await page.keyboard.press('Escape');
 
     async function beginRename() {
-      await page.locator(trigger).click();
+      if (await page.locator('#attachment-menu').count() === 0) await page.locator(trigger).click();
       await page.locator('[data-att-menu-action="rename"]').click();
       await page.locator('#attachment-rename-input').waitFor({ state: 'visible' });
     }
