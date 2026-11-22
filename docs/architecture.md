@@ -32,7 +32,8 @@ The Supabase Auth session may be persisted locally by the Supabase client to res
 - Deletions use tombstones so they propagate across devices.
 - Notes, folders, and labels receive server-authoritative `updated_at` values through database triggers. Client device clocks are not used as the authority for version ordering.
 - Local pending-change markers and compare-and-swap updates detect a cloud record that changed after the device fetched it. Concurrent note edits are preserved as conflict copies rather than silently overwriting one another.
-- Supabase Realtime currently subscribes to note-row changes. Folder and label changes are discovered through the periodic refresh fallback; they are not yet covered by dedicated Realtime subscriptions.
+- Supabase Realtime subscribes to `notes`, `folders`, and `labels` in one account-scoped channel, with a `user_id` filter on every table. Any event schedules the normal cloud sync, which fetches authoritative rows rather than applying partial event payloads.
+- The client removes the previous channel when the account changes or signs out, and ignores callbacks from stale channels. The Supabase Realtime client manages connection recovery; the UI reports subscription status. A 30-second visible-tab refresh remains as a fallback for missed events or unavailable Realtime.
 - Realtime notifications are a prompt to refresh, not the source of truth. The client must fetch current records from Supabase.
 
 Real browser testing is still required for simultaneous edits, auth expiry, OAuth redirects, storage upload/download, quota failures, reset propagation, and cross-device consistency. Do not claim production readiness until those tests pass.
@@ -73,6 +74,7 @@ The current vanilla-JavaScript entry point remains `index.html`; the following b
 - `note-state-core.js` owns default state, structured cloning, and state normalization.
 - `note-sync-core.js` owns note/attachment fingerprints and deterministic local-versus-remote sync planning, including conflict classification.
 - `note-editor-core.js` owns note draft creation, empty-draft detection, checklist mutations, and label toggling.
+- `note-realtime-core.js` owns account-scoped Realtime channel subscriptions, stale-callback protection, and channel cleanup.
 - `note-sanitizer.js` owns the DOMPurify HTML boundary.
 
 The CI workflow runs Node unit tests for state normalization, sync planning, and auth delegation, plus Playwright browser tests for IndexedDB persistence (including Blob attachments and account separation), service-worker caching, sanitization, and responsive layout. These tests validate isolated modules and browser infrastructure; they do **not** simulate a live Google OAuth provider or a real Supabase project. OAuth redirects, session expiry/refresh, real RLS enforcement, live concurrent edits, and full attachment transfer still require configured staging credentials and manual/acceptance testing.
