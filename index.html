@@ -567,7 +567,7 @@
           const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
           const labelMap=new Map(remoteLabels.filter(x=>x.client_id&&x.client_id!==RESET_MARKER_CLIENT_ID).map(x=>[x.client_id,x]));
           const noteMap=new Map(remoteNotes.filter(x=>x.client_id).map(x=>[x.client_id,x]));
-          const uploadsFolders=[],uploadsLabels=[],uploadsNotes=[],noteExpectedVersions=new Map();
+          const uploadsFolders=[],uploadsLabels=[],uploadsNotes=[],noteExpectedVersions=new Map(),conflictedNoteIds=new Set();
           for(const f of state.folders){const r=folderMap.get(f.id);const payload={user_id:userId,client_id:f.id,name:f.name,updated_at:f.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsFolders.push(payload);}
           for(const l of state.labels){const r=labelMap.get(l.id);const payload={user_id:userId,client_id:l.id,name:l.name,colour:l.colour||'olive',updated_at:l.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsLabels.push(payload);}
           if(uploadsFolders.length){const q=await supabaseClient.from('folders').upsert(uploadsFolders,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
@@ -613,10 +613,24 @@
             if(expected){
               const q=await supabaseClient.from('notes').update(payload).eq('user_id',userId).eq('client_id',payload.client_id).eq('updated_at',expected).select('id');
               if(q.error)throw q.error;
-              if(!q.data||q.data.length===0)syncRequested=true;
+              if(!q.data||q.data.length===0){conflictedNoteIds.add(payload.client_id);syncRequested=true;}
             }else{
               const q=await supabaseClient.from('notes').insert(payload).select('id');
               if(q.error){if(q.error.code==='23505')syncRequested=true;else throw q.error;}
+            }
+          }
+          if(conflictedNoteIds.size){
+            // Preserve the losing device's concurrent edit as a separate local conflict copy,
+            // while the canonical note adopts the latest cloud version.
+            const conflictRows=await fetchAllRows('notes','id,user_id,client_id,title,body_html,checklist,links,colour,pinned,sort_order,folder_id,archived,trashed,created_at,updated_at,deleted_at',userId);
+            for(const clientId of conflictedNoteIds){
+              const remote=conflictRows.find(x=>x.client_id===clientId&&!x.deleted_at);
+              const index=merged.findIndex(x=>x.id===clientId);
+              if(!remote||index<0)continue;
+              const localCopy=merged[index];
+              const remoteFolder=remote.folder_id?folderByUuid.get(remote.folder_id):null;
+              merged[index]={id:clientId,title:remote.title||'',bodyHtml:remote.body_html||'',checklist:remote.checklist||[],links:remote.links||[],colour:remote.colour||'paper',pinned:!!remote.pinned,order:Number(remote.sort_order||0),folderId:remoteFolder?remoteFolder.client_id:'',labelIds:localCopy.labelIds||[],attachments:localCopy.attachments||[],archived:!!remote.archived,trashed:!!remote.trashed,createdAt:Date.parse(remote.created_at)||Date.now(),updatedAt:remote.updated_at};
+              merged.push({...localCopy,id:uid('n-conflict'),title:'Conflict copy — '+(localCopy.title||'Untitled note'),createdAt:Date.now(),updatedAt:new Date().toISOString()});
             }
           }
           const freshNotes=await fetchAllRows('notes','id,user_id,client_id,updated_at,deleted_at',userId);
