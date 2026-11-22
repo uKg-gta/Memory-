@@ -19,9 +19,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install Chromium test runner
+      - name: Install Playwright test runner
         run: npm install --no-save playwright@1.56.1
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install cross-browser engines
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Run service-worker and browser security tests
-        run: node --test tests/service-worker.test.cjs tests/security-browser.test.cjs
+        run: node --test tests/service-worker.test.cjs tests/security-browser.test.cjs tests/responsive-browser.test.cjs
