@@ -26,7 +26,7 @@ The repository includes the current standalone web-app prototype:
 - Attachment and link interfaces
 - IndexedDB-based local persistence and backup/restore
 - Google sign-in through the dedicated Memory Supabase project
-- Initial cloud sync for note content with local-first merge and deletion tombstones; attachments, folders, and labels remain local-only at this stage
+- Cloud sync for notes, folders, labels, note-label relationships, and attachment files with local-first merge
 - PWA manifest and service-worker support files
 
 Prototype capabilities and browser/platform support still require real-device testing. See [docs/architecture.md](docs/architecture.md) and [docs/product-specification.md](docs/product-specification.md) for scope and decisions.
@@ -99,5 +99,7 @@ Built as a personal project.
 - The browser uses only the Supabase publishable key. No service-role or secret key is shipped to the client.
 - Google sign-in/sign-out controls are available in Settings. Google OAuth must be enabled in Supabase Auth with a Google OAuth web client and the deployed app URL added to the redirect allowlist.
 - Google session restoration is handled by Supabase Auth. The Settings screen reports sync status and offers a manual sync action.
-- Initial note sync merges by client note ID and update time, keeps local attachment Blobs on their originating device, and uses cloud deletion tombstones for permanently deleted notes.
-- Folders, labels, attachment binaries, and attachment metadata are not yet synchronised. The current sync code has passed JavaScript syntax validation but still requires live multi-device/browser acceptance testing; it is not yet a production-ready release.
+- Sync covers notes, folders, labels, note-label relationships, attachment metadata, and attachment binaries. Local IndexedDB copies are retained.
+- Local workspaces are isolated by signed-in account on a shared browser profile; a first-time sign-in can claim the pre-account local workspace, while switching accounts loads a separate local workspace.
+- Sync uses client IDs, timestamp comparisons, deletion tombstones, paginated reads, and retries when the device reconnects or the app regains focus.
+- Folders, labels, note-label relationships, attachment metadata, and attachment binaries are included in the sync implementation. IndexedDB retains local attachment Blobs. The sync code has passed JavaScript syntax validation and the database schema/policies have been inspected. Live multi-device/browser acceptance testing is still required; it is not yet a production-ready release.
