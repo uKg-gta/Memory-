@@ -127,7 +127,7 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
       }
       return { names, allKeys };
     });
-    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v31-shell'));
+    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v32-shell'));
     const approvedExternal = new Set([
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
       'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
@@ -176,7 +176,7 @@ test('universal attachment preview routes formats to safe in-app renderers', () 
   assert.match(html, /MemoryAttachmentPreview\.render/);
   assert.match(html, /previewGeneration/);
   assert.doesNotMatch(html, /PDF preview is disabled for safety/);
-  assert.match(preview, /sandbox','allow-scripts'/);
+  assert.match(preview, /sandbox','allow-scripts allow-same-origin'/);
   for (const extension of ['docx', 'xlsx', 'pptx', 'zip', 'rar', '7z', 'stl', 'obj', 'gltf', 'glb', 'woff2', 'exe']) {
     assert.ok(preview.includes("'" + extension + "'"), 'preview engine should recognize ' + extension);
   }
