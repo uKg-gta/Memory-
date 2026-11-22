@@ -168,12 +168,48 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
   }
 });
 
-test('attachment previews keep active content isolated or download-only', () => {
+test('universal attachment preview routes formats to safe in-app renderers', () => {
   const fs = require('node:fs');
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.match(html, /PDF preview is disabled for safety/);
-  assert.match(html, /sandbox=""/);
-  assert.match(html, /\['image\\/png', 'image\\/jpeg', 'image\\/gif', 'image\\/webp', 'image\\/avif', 'image\\/bmp'\]/);
-  assert.doesNotMatch(html, /sandbox="allow-forms allow-scripts allow-popups allow-popups-to-escape-sandbox"/);
-  assert.match(html, /previewObjectUrl === textPreviewUrl/);
+  const preview = fs.readFileSync(path.join(__dirname, '..', 'note-attachment-preview.js'), 'utf8');
+  assert.match(html, /note-attachment-preview\.js/);
+  assert.match(html, /MemoryAttachmentPreview\.render/);
+  assert.match(html, /previewGeneration/);
+  assert.doesNotMatch(html, /PDF preview is disabled for safety/);
+  assert.match(preview, /sandbox','allow-scripts'/);
+  for (const extension of ['docx', 'xlsx', 'pptx', 'zip', 'rar', '7z', 'stl', 'obj', 'gltf', 'glb', 'woff2', 'exe']) {
+    assert.ok(preview.includes("'" + extension + "'"), 'preview engine should recognize ' + extension);
+  }
+  assert.match(preview, /Binary preview/);
+  assert.match(preview, /ZIP archive contents/);
+  assert.match(preview, /Macros and embedded scripts are not executed/);
+  assert.match(preview, /DOMPurify/);
+});
+
+test('preview engine renders text, Office documents, PDFs and binary inspector in Chromium', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<!doctype html><html><body><div id="preview"></div></body></html>');
+    await page.addScriptTag({ path: path.join(__dirname, '..', 'vendor', 'purify.min.js') });
+    await page.addScriptTag({ path: path.join(__dirname, '..', 'note-attachment-preview.js') });
+    const result = await page.evaluate(async () => {
+      const host = document.getElementById('preview');
+      const textBlob = new Blob(['{"hello":"Memory"}'], { type: 'application/json' });
+      await MemoryAttachmentPreview.render({ container: host, blob: textBlob, name: 'sample.json', mimeType: 'application/json', objectUrl: URL.createObjectURL(textBlob) });
+      const text = host.querySelector('pre')?.textContent || '';
+      const binary = new Blob([new Uint8Array([0x4d,0x5a,0x00,0xff])], { type: 'application/octet-stream' });
+      await MemoryAttachmentPreview.render({ container: host, blob: binary, name: 'sample.exe', mimeType: 'application/octet-stream', objectUrl: URL.createObjectURL(binary) });
+      const inspector = host.textContent.includes('File inspector') && host.textContent.includes('Binary preview');
+      const pdf = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
+      await MemoryAttachmentPreview.render({ container: host, blob: pdf, name: 'sample.pdf', mimeType: 'application/pdf', objectUrl: URL.createObjectURL(pdf) });
+      const pdfSandboxed = host.querySelector('iframe')?.getAttribute('sandbox') === 'allow-scripts';
+      return { text, inspector, pdfSandboxed };
+    });
+    assert.match(result.text, /"hello": "Memory"/);
+    assert.equal(result.inspector, true);
+    assert.equal(result.pdfSandboxed, true);
+  } finally {
+    await browser.close();
+  }
 });
