@@ -1,5 +1,5 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v8';
+const VERSION = 'memory-pwa-v9';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
