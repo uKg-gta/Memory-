@@ -80,7 +80,7 @@
   function findMatchingConflictCopy(notes, sourceNote, fingerprint, title) {
     if (!sourceNote || typeof fingerprint !== 'function') return null;
     const expectedTitle = String(title || 'Conflict copy');
-    const expectedFingerprint = fingerprint(sourceNote);
+    const expectedFingerprint = fingerprint({ ...sourceNote, title: expectedTitle });
     return (notes || []).find(candidate => candidate && candidate.id !== sourceNote.id &&
       candidate.title === expectedTitle && fingerprint(candidate) === expectedFingerprint) || null;
   }
