@@ -149,3 +149,12 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - PDFs again use the browser's native viewer in the in-app iframe; PDF MIME is normalized when the uploaded Blob lacks the correct type.
 - Kept HTML previews sandboxed, text previews use `textContent`, and stale asynchronous previews are ignored.
 - Removed the unused universal preview module from the loaded app shell and bumped the service-worker cache to v33.
+
+## 2026-11-23 — Manual cloud sync
+
+- Added a persistent Sync control beside the search field and a matching control inside the note editor.
+- Kept one initial cloud sync after sign-in on each app launch; removed automatic syncs triggered by the 30-second timer, app focus/visibility, local autosave, Realtime notifications, and network reconnection.
+- Realtime changes now mark cloud updates as available without starting a sync.
+- Manual sync keeps an already-editable editor active and reconciles the open draft after the cloud merge; concurrent edits are preserved as conflict copies.
+- Preserved the existing read-only policy before the initial successful sync, while offline, and after a sync failure.
+- Updated the product specification to reflect the manual-sync policy.
