@@ -111,6 +111,7 @@
     return Array.from(doc.getElementsByTagName(selector)).map(n=>n.textContent || '').filter(Boolean);
   }
   async function officePreview(container, file, kind, zip) {
+    if (zip.total > MAX_EXPANDED_BYTES) throw new Error('The expanded Office document exceeds the safe preview limit.');
     const wrap=panel(container,kind+' preview','Rendered locally from the document package. Macros and embedded scripts are not executed.');
     addMetadata(wrap,file,file.type,kind);
     if (kind==='Word document') {
