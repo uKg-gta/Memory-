@@ -168,23 +168,17 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
   }
 });
 
-test('universal attachment preview routes formats to safe in-app renderers', () => {
-  const fs = require('node:fs');
+test('built-in attachment viewer previews browser-supported files in the app', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  const preview = fs.readFileSync(path.join(__dirname, '..', 'note-attachment-preview.js'), 'utf8');
-  assert.match(html, /note-attachment-preview\.js/);
-  assert.match(html, /MemoryAttachmentPreview\.render/);
-  assert.match(html, /new Blob\(\[blob\], \{ type: 'application\/pdf' \}\)/);
-  assert.match(html, /previewGeneration/);
-  assert.doesNotMatch(html, /PDF preview is disabled for safety/);
-  assert.match(preview, /sandbox','allow-scripts allow-same-origin'/);
-  for (const extension of ['docx', 'xlsx', 'pptx', 'zip', 'rar', '7z', 'stl', 'obj', 'gltf', 'glb', 'woff2', 'exe']) {
-    assert.ok(preview.includes("'" + extension + "'"), 'preview engine should recognize ' + extension);
-  }
-  assert.match(preview, /Binary preview/);
-  assert.match(preview, /ZIP archive contents/);
-  assert.match(preview, /Macros and embedded scripts are not executed/);
-  assert.match(preview, /DOMPurify/);
+  assert.doesNotMatch(html, /note-attachment-preview\\.js/);
+  assert.match(html, /const isPdf = mime === 'application\\/pdf'/);
+  assert.match(html, /new Blob\\(\\[blob\\], \\{ type: 'application\\/pdf' \\}\\)/);
+  assert.match(html, /frame\\.src = objectUrl/);
+  assert.match(html, /if \\(isPdf\\)/);
+  assert.match(html, /frame\\.setAttribute\\('sandbox', ''\\)/);
+  assert.match(html, /player\\.controls = true/);
+  assert.match(html, /generation !== previewGeneration/);
+  assert.match(html, /Preview isn't available for this file type/);
 });
 
 test('preview engine renders text, Office documents, PDFs and binary inspector in Chromium', async () => {
