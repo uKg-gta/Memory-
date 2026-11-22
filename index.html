@@ -19,7 +19,6 @@
   <script src="./note-auth-core.js"></script>
   <script src="./note-editor-core.js"></script>
   <script src="./note-attachment-policy.js"></script>
-  <script src="./note-attachment-preview.js"></script>
   <script src="./note-realtime-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -2489,41 +2488,88 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         if (!attachment) return;
         const blob = attachment.blob || attachment.fileBlob;
         if (!(blob instanceof Blob)) { showToast('This older attachment has no saved file data. Please attach the file again.'); return; }
+
         if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-        const isPdf = /\.pdf$/i.test(attachment.name || '') || attachment.mimeType === 'application/pdf' || blob.type === 'application/pdf';
+        const extension = (attachment.name.split('.').pop() || '').toLowerCase();
+        const mime = attachment.mimeType || blob.type || 'application/octet-stream';
+        const isPdf = mime === 'application/pdf' || attachment.type === 'PDF' || extension === 'pdf';
         const previewBlob = isPdf && blob.type !== 'application/pdf'
           ? new Blob([blob], { type: 'application/pdf' })
           : blob;
         previewObjectUrl = URL.createObjectURL(previewBlob);
         const objectUrl = previewObjectUrl;
         const generation = ++previewGeneration;
+
         previewReturnFocus = document.activeElement;
         document.getElementById('file-preview-title').textContent = attachment.name;
         const download = document.getElementById('file-preview-download');
-        download.href = objectUrl; download.download = attachment.name;
+        download.href = objectUrl;
+        download.download = attachment.name;
         download.classList.remove('hidden');
         document.getElementById('file-preview-external').href = objectUrl;
+
         const body = document.getElementById('file-preview-body');
         body.replaceChildren();
-        const stage = document.createElement('div');
-        stage.className = 'w-full h-full min-h-0 flex items-center justify-center overflow-auto';
+
+        if (isPdf) {
+          // Keep the browser's native PDF viewer in an unsandboxed iframe.
+          // Sandboxing this frame disables the built-in PDF renderer in some browsers.
+          const frame = document.createElement('iframe');
+          frame.title = attachment.name;
+          frame.src = objectUrl;
+          frame.referrerPolicy = 'no-referrer';
+          frame.className = 'w-full h-full border-0 bg-white';
+          body.append(frame);
+        } else if (mime.startsWith('image/')) {
+          const image = document.createElement('img');
+          image.src = objectUrl;
+          image.alt = attachment.name;
+          image.className = 'max-w-full max-h-full object-contain p-3';
+          body.append(image);
+        } else if (mime === 'text/html' || ['html', 'htm'].includes(extension)) {
+          const frame = document.createElement('iframe');
+          frame.title = attachment.name;
+          frame.src = objectUrl;
+          frame.setAttribute('sandbox', '');
+          frame.referrerPolicy = 'no-referrer';
+          frame.className = 'w-full h-full border-0 bg-white';
+          body.append(frame);
+        } else if (mime.startsWith('text/') || ['txt', 'md', 'csv', 'json', 'xml', 'js', 'css'].includes(extension)) {
+          blob.text().then(text => {
+            if (generation !== previewGeneration || previewObjectUrl !== objectUrl) return;
+            const pre = document.createElement('pre');
+            pre.className = 'w-full h-full overflow-auto p-4 text-xs whitespace-pre-wrap break-words text-main';
+            pre.textContent = text;
+            body.replaceChildren(pre);
+          });
+        } else if (mime.startsWith('audio/')) {
+          const player = document.createElement('audio');
+          player.controls = true;
+          player.className = 'w-full max-w-xl p-4';
+          player.src = objectUrl;
+          body.append(player);
+        } else if (mime.startsWith('video/')) {
+          const player = document.createElement('video');
+          player.controls = true;
+          player.playsInline = true;
+          player.className = 'max-w-full max-h-full';
+          player.src = objectUrl;
+          body.append(player);
+        } else {
+          const fallback = document.createElement('div');
+          fallback.className = 'p-8 text-center max-w-md';
+          const heading = document.createElement('div');
+          heading.className = 'text-sm font-medium';
+          heading.textContent = 'Preview isn\'t available for this file type.';
+          const detail = document.createElement('div');
+          detail.className = 'text-xs text-muted mt-2';
+          detail.textContent = 'Download the file or open it in another application.';
+          fallback.append(heading, detail);
+          body.append(fallback);
+        }
+
         document.getElementById('file-preview-overlay').classList.remove('hidden');
         document.getElementById('file-preview-close').focus();
-        MemoryAttachmentPreview.render({
-          container: stage,
-          blob,
-          name: attachment.name,
-          mimeType: attachment.mimeType || blob.type || 'application/octet-stream',
-          objectUrl
-        }).then(() => {
-          if (generation === previewGeneration && previewObjectUrl === objectUrl) body.replaceChildren(...stage.childNodes);
-        }).catch(error => {
-          if (generation !== previewGeneration || previewObjectUrl !== objectUrl) return;
-          const message = document.createElement('p');
-          message.className = 'p-6 text-sm text-muted';
-          message.textContent = 'Preview could not be generated: ' + (error && error.message ? error.message : 'Unknown file error');
-          body.replaceChildren(message);
-        });
         refreshIcons();
       }
       function closeAttachmentPreview() {
