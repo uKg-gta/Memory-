@@ -76,5 +76,14 @@
     return { local, remoteOnly };
   }
 
-  return Object.freeze({ fingerprintNote, fingerprintAttachments, attachmentMetadataUpdate, planNoteSync });
+
+  function findMatchingConflictCopy(notes, sourceNote, fingerprint, title) {
+    if (!sourceNote || typeof fingerprint !== 'function') return null;
+    const expectedTitle = String(title || 'Conflict copy');
+    const expectedFingerprint = fingerprint(sourceNote);
+    return (notes || []).find(candidate => candidate && candidate.id !== sourceNote.id &&
+      candidate.title === expectedTitle && fingerprint(candidate) === expectedFingerprint) || null;
+  }
+
+  return Object.freeze({ fingerprintNote, fingerprintAttachments, attachmentMetadataUpdate, findMatchingConflictCopy, planNoteSync });
 });
