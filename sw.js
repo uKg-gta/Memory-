@@ -1,5 +1,5 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v35';
+const VERSION = 'memory-pwa-v36';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
@@ -17,7 +17,8 @@ const SHELL_FILES = [
   './note-auth-core.js',
   './note-editor-core.js',
   './note-attachment-policy.js',
-  './note-realtime-core.js'
+  './note-realtime-core.js',
+  './note-link-preview.js'
 ];
 const SHELL_ASSETS = new Set(SHELL_FILES.map(path => new URL(path, self.registration.scope).href));
 
@@ -76,10 +77,13 @@ self.addEventListener('fetch', event => {
   // External requests are network-only unless their exact URL is allowlisted.
   // The entire Supabase origin is always network-only, including API and Storage.
   if (url.origin !== self.location.origin) {
-    if (url.origin === SUPABASE_ORIGIN || !EXTERNAL_ASSETS.has(url.href)) {
+    if (url.origin === SUPABASE_ORIGIN) {
       event.respondWith(fetch(request));
       return;
     }
+    // Leave arbitrary external resources to the browser so media range and
+    // seeking requests are handled natively instead of being service-worker intercepted.
+    if (!EXTERNAL_ASSETS.has(url.href)) return;
 
     event.respondWith((async () => {
       const cache = await caches.open(RUNTIME_CACHE);

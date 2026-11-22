@@ -49,13 +49,17 @@ function createWorker(fetchImpl) {
   return { listeners, caches, stores, writes };
 }
 
-async function dispatch(worker, request) {
+async function dispatch(worker, request, expectRespond = true) {
   let responsePromise;
   worker.listeners.fetch({
     request,
     respondWith(promise) { responsePromise = Promise.resolve(promise); }
   });
-  assert.ok(responsePromise, 'fetch handler should call respondWith for GET');
+  if (!responsePromise) {
+    assert.equal(expectRespond, false, 'external request should be left to the browser');
+    return null;
+  }
+  assert.equal(expectRespond, true, 'intercepted requests should call respondWith');
   return responsePromise;
 }
 
@@ -89,7 +93,7 @@ test('unlisted external requests are network-only', async () => {
   await dispatch(worker, {
     method: 'GET', mode: 'cors',
     url: 'https://example.org/track.js'
-  });
+  }, false);
   assert.equal(worker.writes.length, 0);
   assert.equal(worker.stores.size, 0);
 });
@@ -125,8 +129,10 @@ test('same-origin shell assets may be cached', async () => {
   assert.equal(worker.writes[5].key, 'https://app.example/note-editor-core.js');
   await dispatch(worker, { method: 'GET', mode: 'cors', url: 'https://app.example/note-realtime-core.js' });
   assert.equal(worker.writes[6].key, 'https://app.example/note-realtime-core.js');
+  await dispatch(worker, { method: 'GET', mode: 'cors', url: 'https://app.example/note-link-preview.js' });
+  assert.equal(worker.writes[7].key, 'https://app.example/note-link-preview.js');
   await dispatch(worker, { method: 'GET', mode: 'cors', url: 'https://app.example/app.js' });
-  assert.equal(worker.writes[7].key, 'https://app.example/app.js');
+  assert.equal(worker.writes[8].key, 'https://app.example/app.js');
   const writesBeforeUncachedModule = worker.writes.length;
   await dispatch(worker, { method: 'GET', mode: 'cors', url: 'https://app.example/note-attachment-preview.js' });
   assert.equal(worker.writes.length, writesBeforeUncachedModule, 'unused preview engine is not part of the app shell');
@@ -147,7 +153,7 @@ test('404 and 500 navigation responses never replace the app shell', async () =>
 
 test('offline navigation falls back to the install-time app shell', async () => {
   const worker = createWorker(async () => { throw new Error('offline'); });
-  const shell = await worker.caches.open('memory-pwa-v35-shell');
+  const shell = await worker.caches.open('memory-pwa-v36-shell');
   await shell.put('./index.html', response('cached app shell'));
   const result = await dispatch(worker, {
     method: 'GET', mode: 'navigate',

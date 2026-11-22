@@ -128,7 +128,7 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
       }
       return { names, allKeys };
     });
-    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v35-shell'));
+    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v36-shell'));
     const approvedExternal = new Set([
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
       'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
@@ -240,6 +240,12 @@ test('meta CSP protects the signed-out app and permits local Blob preview resour
         first: document.head.firstElementChild === meta,
         content: meta?.content || '',
         scriptSrc: directives['script-src'] || [],
+        defaultSrc: directives['default-src'] || [],
+        frameSrc: directives['frame-src'] || [],
+        imgSrc: directives['img-src'] || [],
+        mediaSrc: directives['media-src'] || [],
+        connectSrc: directives['connect-src'] || [],
+        objectSrc: directives['object-src'] || [],
         authVisible: getComputedStyle(document.getElementById('auth-gate')).display !== 'none',
         appHidden: getComputedStyle(document.getElementById('app')).display === 'none'
       };
@@ -247,6 +253,13 @@ test('meta CSP protects the signed-out app and permits local Blob preview resour
     assert.equal(policy.first, true, 'CSP meta must be the first head element');
     assert.ok(policy.content);
     assert.equal(policy.scriptSrc.includes("'unsafe-inline'"), false);
+    assert.equal(policy.scriptSrc.includes("'unsafe-eval'"), false);
+    assert.deepEqual(policy.defaultSrc, ["'none'"]);
+    assert.ok(policy.frameSrc.includes('blob:') && policy.frameSrc.includes('https:'));
+    assert.ok(policy.imgSrc.includes("'self'") && policy.imgSrc.includes('data:') && policy.imgSrc.includes('blob:') && policy.imgSrc.includes('https:'));
+    assert.ok(policy.mediaSrc.includes('blob:') && policy.mediaSrc.includes('https:'));
+    assert.equal(policy.connectSrc.includes('https:'), false);
+    assert.deepEqual(policy.objectSrc, ["'none'"]);
     assert.equal(policy.authVisible, true, 'signed-out auth gate should be visible');
     assert.equal(policy.appHidden, true, 'notes app should remain hidden while signed out');
 
@@ -288,7 +301,9 @@ test('meta CSP protects the signed-out app and permits local Blob preview resour
     assert.deepEqual(cspConsoleErrors, []);
 
     const appSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-    assert.match(appSource, /In-app website previews are disabled by the app security policy/);
+    assert.doesNotMatch(appSource, /In-app website previews are disabled by the app security policy/);
+    assert.match(appSource, /function openLinkPreview/);
+    assert.match(appSource, /MemoryLinkPreview\.classifyLink/);
     assert.doesNotMatch(appSource, /<iframe title="Website preview"/);
     assert.match(appSource, /origin !== window\.location\.origin/);
   } finally {

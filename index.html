@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src blob:; connect-src 'self' https://ncqypupxbywojcvwfgvg.supabase.co wss://ncqypupxbywojcvwfgvg.supabase.co; frame-src blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
-  <!-- style-src 'unsafe-inline' is retained only for the existing inline style block and style attributes. -->
+  <!-- GitHub Pages meta CSP: external preview resources are limited to HTTPS frames, images, and media. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src blob: https:; connect-src 'self' https://ncqypupxbywojcvwfgvg.supabase.co wss://ncqypupxbywojcvwfgvg.supabase.co; frame-src blob: https:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
+  <!-- style-src 'unsafe-inline' is retained only for existing inline styles; external previews use frame/img/media sources, not connect-src. -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#F4EFE5" />
