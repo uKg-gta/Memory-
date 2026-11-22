@@ -148,8 +148,8 @@ test('conflict-copy lookup reuses an identical existing copy instead of creating
 
 test('production stylesheet includes the responsive note-grid utilities used by the app', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'tailwind.css'), 'utf8');
-  assert.match(css, /\\.grid\\{display:grid\\}/);
-  assert.match(css, /\\.grid-cols-2\\{grid-template-columns:repeat\\(2,minmax\\(0,1fr\\)\\)\\}/);
-  assert.match(css, /sm\\\\:grid-cols-3/);
-  assert.match(css, /lg\\\\:grid-cols-4/);
+  assert.match(css, /\.grid\{display:grid\}/);
+  assert.match(css, /\.grid-cols-2\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.match(css, /sm\\:grid-cols-3/);
+  assert.match(css, /lg\\:grid-cols-4/);
 });
