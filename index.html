@@ -510,6 +510,8 @@
           const q=await supabaseClient.from('notes').select('id,user_id,client_id,title,body_html,checklist,links,colour,pinned,sort_order,archived,trashed,created_at,updated_at,deleted_at').eq('user_id',userId);
           if(q.error)throw q.error;
           const rows=q.data||[],remote=new Map(rows.filter(r=>r.client_id).map(r=>[r.client_id,r])),local=new Map(state.notes.map(n=>[n.id,n])),merged=[],uploads=[];
+          const deletedIds=(state.syncMeta&&state.syncMeta.deletedNoteIds)||[];
+          if(deletedIds.length){const tombstone=new Date().toISOString();const del=await supabaseClient.from('notes').update({deleted_at:tombstone,updated_at:tombstone}).eq('user_id',userId).in('client_id',deletedIds);if(del.error)throw del.error;}
           for(const n of state.notes){
             const r=remote.get(n.id);
             if(!r){uploads.push(cloudNotePayload(n,userId));merged.push(n);continue;}
@@ -623,7 +625,7 @@
 
       function saveState() {
         let snapshot;
-        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));for(const n of snapshot.notes){const old=prev.get(n.id);if(old&&JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})){n.updatedAt=new Date().toISOString();const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}} }
+        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));const now=new Date().toISOString();snapshot.syncMeta=snapshot.syncMeta||{};snapshot.syncMeta.deletedNoteIds=snapshot.syncMeta.deletedNoteIds||[];const present=new Set(snapshot.notes.map(n=>n.id));for(const oldNote of (lastSavedState.notes||[]))if(!present.has(oldNote.id)&&!snapshot.syncMeta.deletedNoteIds.includes(oldNote.id))snapshot.syncMeta.deletedNoteIds.push(oldNote.id);for(const n of snapshot.notes){const old=prev.get(n.id);if(old&&JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})){n.updatedAt=now;const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}state.syncMeta=snapshot.syncMeta;} }
         catch (error) {
           console.error('Could not prepare data for IndexedDB:', error);
           showToast('Could not prepare local data for saving');
