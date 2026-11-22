@@ -41,7 +41,7 @@ for (const [engineName, engine] of Object.entries({ chromium, firefox, webkit })
     try {
       const context = await browser.newContext();
       const page = await context.newPage();
-      await page.route(/^https?:\\/\\/(?!127\\.0\\.0\\.1)/, route => route.abort());
+      await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
       await page.goto(url + '/', { waitUntil: 'domcontentloaded' });
       await page.evaluate(() => document.body.classList.remove('auth-locked'));
 
