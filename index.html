@@ -540,7 +540,7 @@
       });
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,syncStatus='idle',syncError='',realtimeStatus='disconnected',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null;
+      let authUser=null,authReady=false,syncStatus='idle',syncError='',realtimeStatus='connecting',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function noteSyncFingerprint(n){return MemorySyncCore.fingerprintNote(n,sanitizeNoteHtml);}
       function queueCloudSync(delay=100,source='local'){if(!authUser||!supabaseClient||!syncReady)return;if(source==='realtime'){clearTimeout(realtimeSyncTimer);realtimeSyncTimer=setTimeout(()=>queueCloudSync(100,'realtime-run'),350);return;}if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
@@ -1545,6 +1545,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
               <div class="text-sm font-medium">Memory account</div>
               <div id="account-status" class="text-xs text-muted mt-1" role="status" aria-live="polite">${!authReady ? "Checking account status…" : (authUser ? "Signed in as " + escapeHtml(authUser.email || "Google account") : "Not signed in")}</div>
               <div class="text-xs text-muted mt-1">${!authReady ? 'Checking account session…' : (authUser ? (syncStatus === 'syncing' ? 'Syncing notes…' : syncStatus === 'synced' ? 'Notes synced. Offline copies remain on this device.' : syncStatus === 'error' ? 'Sync needs attention: ' + escapeHtml(syncError) : 'Preparing secure sync…') : 'Sign in to sync notes across devices. Local notes remain on this device.')}</div>
+              ${authUser ? '<div id="realtime-status" class="text-[11px] text-muted mt-1" role="status" aria-live="polite">' + (realtimeStatus === 'connected' ? 'Live updates connected for notes, folders and labels.' : realtimeStatus === 'disconnected' ? 'Live updates disconnected; periodic refresh remains active.' : 'Connecting to live updates…') + '</div>' : ''}
               ${authUser ? '<button id="sync-now-btn" type="button" class="mt-2 px-3 py-1.5 rounded-lg border border-muted text-xs hover:bg-surface">Sync now</button>' : ''}
               <button id="google-account-btn" type="button" class="mt-3 px-3.5 py-2 rounded-xl btn-olive text-xs font-medium">${authUser ? "Sign out" : "Continue with Google"}</button>
               <div class="text-[11px] text-muted mt-2">Google OAuth must first be enabled in the Memory Supabase project with your Google client ID and secret.</div>
