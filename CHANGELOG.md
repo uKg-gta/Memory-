@@ -158,3 +158,4 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Manual sync keeps an already-editable editor active and reconciles the open draft after the cloud merge; concurrent edits are preserved as conflict copies.
 - Preserved the existing read-only policy before the initial successful sync, while offline, and after a sync failure.
 - Updated the product specification to reflect the manual-sync policy.
+- Bumped the PWA shell cache to v34 so installed apps receive the updated sync controls and behavior.
