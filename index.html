@@ -70,6 +70,9 @@
     }
     @media (forced-colors: active) { :focus-visible { outline: 2px solid Highlight; } .note-card.is-selected { outline: 2px solid Highlight; } }
 
+    body.auth-locked #app { display: none !important; }
+    body.auth-locked #auth-gate { display: flex !important; }
+
     body {
       margin: 0;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -200,7 +203,17 @@
     }
   </style>
 </head>
-<body class="min-h-screen bg-main text-main">
+<body class="min-h-screen bg-main text-main auth-locked">
+  <section id="auth-gate" class="fixed inset-0 z-[100] hidden items-center justify-center bg-main px-5 py-8" aria-labelledby="auth-gate-title">
+    <div class="w-full max-w-sm rounded-2xl border border-muted bg-elevated p-6 text-center" style="box-shadow: var(--shadow-modal);">
+      <div class="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl" style="background-color: var(--accent-olive); color: #FAF7F0;"><i data-lucide="book-marked" class="h-5 w-5"></i></div>
+      <h1 id="auth-gate-title" class="text-xl font-semibold">Welcome to Memory</h1>
+      <p id="auth-gate-message" class="mt-2 text-sm text-muted" role="status" aria-live="polite">Checking your account…</p>
+      <button id="auth-gate-google-btn" type="button" class="mt-5 w-full rounded-xl btn-olive px-4 py-3 text-sm font-medium">Continue with Google</button>
+      <p class="mt-3 text-[11px] text-muted">Sign in is required to access your notes.</p>
+    </div>
+  </section>
+
   <div id="app" class="min-h-screen flex">
     <!-- Desktop Persistent Sidebar (No redundant hamburger on desktop) -->
     <aside class="hidden md:flex md:flex-col w-60 shrink-0 border-r border-muted bg-main sticky top-0 h-screen px-3 py-4">
@@ -607,30 +620,90 @@
         }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';}
         finally{syncInProgress=false;if(currentView==='settings')renderMain();}
       }
+      async function deleteDatabaseState(key) {
+        const db = await openDatabase();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, 'readwrite');
+          tx.objectStore(DB_STORE).delete(key);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error || new Error('Could not clear old local data.'));
+          tx.onabort = () => reject(tx.error || new Error('Local cleanup was interrupted.'));
+        });
+      }
+
+      function updateAuthGate() {
+        const gate = document.getElementById('auth-gate');
+        const message = document.getElementById('auth-gate-message');
+        const button = document.getElementById('auth-gate-google-btn');
+        const locked = !authReady || !authUser;
+        document.body.classList.toggle('auth-locked', locked);
+        gate.classList.toggle('hidden', !locked);
+        if (!authReady) message.textContent = 'Checking your account…';
+        else if (syncStatus === 'error') message.textContent = 'Could not verify your account. Check your connection and try again.';
+        else message.textContent = 'Sign in with Google to access and write your notes.';
+        button.disabled = !supabaseClient || !authReady;
+        button.textContent = supabaseClient ? 'Continue with Google' : 'Sign-in unavailable';
+      }
+
       async function switchAccountWorkspace(user) {
-        const targetKey=user?'account:'+user.id:'primary';
-        if(targetKey===activeStorageKey)return;
+        if (!user) return;
+        const targetKey = 'account:' + user.id;
+        if (targetKey === activeStorageKey) return;
         await persistenceQueue;
-        const current=cloneData(state);
-        const target=await readDatabaseState(targetKey);
-        if(!target&&user&&activeStorageKey==='primary'&&!(current.syncMeta&&current.syncMeta.ownerUserId)){
-          current.syncMeta=current.syncMeta||{};current.syncMeta.ownerUserId=user.id;
-          activeStorageKey=targetKey;state=normalizeState(current);lastSavedState=cloneData(state);await saveState();return;
-        }
-        activeStorageKey=targetKey;
-        state=normalizeState(target&&Array.isArray(target.notes)?target:getDefaultData());
-        state.syncMeta=state.syncMeta||{};
-        if(user)state.syncMeta.ownerUserId=user.id;
-        lastSavedState=cloneData(state);
+        const target = await readDatabaseState(targetKey);
+        activeStorageKey = targetKey;
+        state = normalizeState(target && Array.isArray(target.notes) ? target : getDefaultData());
+        state.syncMeta = state.syncMeta || {};
+        state.syncMeta.ownerUserId = user.id;
+        lastSavedState = cloneData(state);
         await saveState();
-        applyTheme();renderAll();
+        applyTheme();
+        renderAll();
       }
       async function initializeSupabaseAuth(){
-        if(!supabaseClient){authReady=true;syncStatus='unavailable';return;}
-        try{const r=await supabaseClient.auth.getSession();if(r.error)throw r.error;authUser=r.data.session?r.data.session.user:null;authReady=true;
-          supabaseClient.auth.onAuthStateChange((_event,session)=>{const nextUser=session?session.user:null;const changed=(authUser&&nextUser&&authUser.id!==nextUser.id)||(!authUser&&nextUser)||(authUser&&!nextUser);authUser=nextUser;authReady=true;if(changed){switchAccountWorkspace(authUser).then(()=>{if(authUser){syncReady=true;queueCloudSync(200);}else{syncReady=false;syncStatus='idle';}renderAll();}).catch(e=>{console.error('Could not switch local account workspace:',e);syncStatus='error';syncError='Could not load this account’s local notes';});}else if(authUser){syncReady=true;queueCloudSync(200);}else{syncReady=false;}if(currentView==='settings')renderMain();});
-          if(authUser){await switchAccountWorkspace(authUser);syncReady=true;await syncCloudNotes();}
-        }catch(e){console.error('Supabase auth initialization failed:',e);authReady=true;syncStatus='error';syncError=e.message||'Could not restore account session';}
+        updateAuthGate();
+        if (!supabaseClient) {
+          authReady = true; syncStatus = 'unavailable'; updateAuthGate(); return;
+        }
+        try {
+          const r = await supabaseClient.auth.getSession();
+          if (r.error) throw r.error;
+          authUser = r.data.session ? r.data.session.user : null;
+          if (authUser) {
+            await switchAccountWorkspace(authUser);
+            syncReady = true;
+            await syncCloudNotes();
+          } else {
+            syncReady = false; syncStatus = 'idle';
+          }
+          authReady = true;
+          updateAuthGate();
+          supabaseClient.auth.onAuthStateChange((_event, session) => {
+            const nextUser = session ? session.user : null;
+            const changed = (authUser && nextUser && authUser.id !== nextUser.id) || (!authUser && nextUser) || (authUser && !nextUser);
+            authUser = nextUser;
+            authReady = true;
+            if (!nextUser) {
+              syncReady = false; syncStatus = 'idle'; updateAuthGate(); return;
+            }
+            if (changed) {
+              switchAccountWorkspace(nextUser).then(() => {
+                syncReady = true; queueCloudSync(200); updateAuthGate(); renderAll();
+              }).catch(e => {
+                console.error('Could not switch local account workspace:', e);
+                syncStatus = 'error'; syncError = 'Could not load this account’s local notes'; updateAuthGate();
+              });
+            } else {
+              syncReady = true; queueCloudSync(200); updateAuthGate();
+            }
+            if (currentView === 'settings') renderMain();
+          });
+        } catch (e) {
+          console.error('Supabase auth initialization failed:', e);
+          authReady = true; syncReady = false; syncStatus = 'error';
+          syncError = e.message || 'Could not restore account session';
+          updateAuthGate();
+        }
       }
       async function handleGoogleAccountAction(){
         if(!supabaseClient){showToast('Account connection could not load. Check your internet connection and reload.');return;}
@@ -2369,6 +2442,7 @@
       document.getElementById('close-drawer-btn').addEventListener('click', closeMobileDrawer);
       document.getElementById('mobile-drawer-backdrop').addEventListener('click', closeMobileDrawer);
       document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
+      document.getElementById('auth-gate-google-btn').addEventListener('click', handleGoogleAccountAction);
 
       const searchInput = document.getElementById('search-input');
       const clearSearchBtn = document.getElementById('clear-search-btn');
@@ -2633,12 +2707,26 @@
         }
       });
 
-      // Init after loading the IndexedDB record (or migrating legacy data).
-      initializeStorage().then(() => {
-        applyTheme();
-        renderAll();
-        retryPendingLinkMetadata();
-        initializeSupabaseAuth().then(() => { if (currentView === 'settings') renderMain(); });
+      // Remove the old signed-out workspace. Google sign-in is now required.
+      initializeStorage().then(async () => {
+        try {
+          await deleteDatabaseState('primary');
+          try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+          try { localStorage.removeItem('memory_app_prototype_v6'); } catch (_) {}
+        } catch (e) {
+          console.error('Could not remove the old signed-out workspace:', e);
+        }
+        updateAuthGate();
+        await initializeSupabaseAuth();
+        if (authUser) {
+          applyTheme();
+          renderAll();
+          retryPendingLinkMetadata();
+        }
+        if (currentView === 'settings' && authUser) renderMain();
+      }).catch(error => {
+        console.error('Memory startup failed:', error);
+        authReady = true; syncStatus = 'error'; updateAuthGate();
       });
     })();
   </script>
