@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memory note sanitizer tests</title>
+  <script src="../vendor/purify.min.js"></script>
+  <script src="../note-sanitizer.js"></script>
+</head>
+<body>
+  <h1>Memory note sanitizer tests</h1>
+  <p id="summary" role="status">Running…</p>
+  <ol id="results"></ol>
+  <script>
+    (function () {
+      const results = document.getElementById('results');
+      let passed = 0;
+      let failed = 0;
+
+      function assert(name, condition) {
+        const item = document.createElement('li');
+        item.textContent = (condition ? 'PASS: ' : 'FAIL: ') + name;
+        item.style.color = condition ? 'green' : 'red';
+        results.appendChild(item);
+        if (condition) passed += 1;
+        else failed += 1;
+      }
+
+      const malicious = '<p>Safe</p><img src=x onerror="window.__xss=true"><script>window.__xss=true<\/script>' +
+        '<a href="javascript:alert(1)" onclick="window.__xss=true">bad link</a>' +
+        '<iframe src="https://attacker.example"></iframe>';
+      const clean = MemoryNoteSanitizer.sanitize(malicious);
+      assert('removes executable and embedded elements', !/<(script|img|iframe)\b/i.test(clean));
+      assert('removes event-handler attributes', !/onerror|onclick/i.test(clean));
+      assert('removes javascript URL schemes', !/javascript:/i.test(clean));
+      assert('preserves safe text', clean.includes('Safe') && clean.includes('bad link'));
+
+      const formatted = '<p><strong>Bold</strong> <em>Italic</em> <u>Underline</u></p>' +
+        '<ul><li>One</li><li>Two</li></ul>' +
+        '<a href="https://example.com" title="Example">Example</a>';
+      const formattedClean = MemoryNoteSanitizer.sanitize(formatted);
+      assert('preserves supported rich-text formatting', /<strong>Bold<\/strong>/.test(formattedClean) &&
+        /<em>Italic<\/em>/.test(formattedClean) && /<u>Underline<\/u>/.test(formattedClean));
+      assert('preserves lists and safe HTTPS links', /<ul>/.test(formattedClean) &&
+        /href="https:\/\/example\.com"/.test(formattedClean));
+      assert('removes style, class and data attributes', !/style=|class=|data-/i.test(
+        MemoryNoteSanitizer.sanitize('<p style="color:red" class="x" data-note="1">Text</p>')
+      ));
+      assert('sanitization is idempotent', MemoryNoteSanitizer.sanitize(clean) === clean);
+      assert('stripHtml extracts text from inert parsed sanitized HTML',
+        MemoryNoteSanitizer.stripHtml('<p>First</p><p><strong>Second</strong></p>') === 'FirstSecond');
+
+      document.getElementById('summary').textContent =
+        passed + ' passed, ' + failed + ' failed';
+      document.title = failed ? 'FAIL — ' + document.title : 'PASS — ' + document.title;
+    })();
+  </script>
+</body>
+</html>
