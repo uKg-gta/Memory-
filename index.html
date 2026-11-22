@@ -666,8 +666,9 @@
       function normalizeState(data) {
         data.theme = data.theme === 'dark' ? 'dark' : 'light';
         data.folders = Array.isArray(data.folders) ? data.folders : [];
+        data.folders.forEach(x=>{if(!x.updatedAt)x.updatedAt=new Date().toISOString();});
         data.labels = Array.isArray(data.labels) ? data.labels : [];
-        data.labels.forEach(label => { if (!label.colour) label.colour = 'olive'; });
+        data.labels.forEach(label => { if (!label.colour) label.colour = 'olive'; if(!label.updatedAt)label.updatedAt=new Date().toISOString(); });
         data.notes = Array.isArray(data.notes) ? data.notes : [];
         data.notes.forEach(note => {
           note.folderId = note.folderId || '';
@@ -693,7 +694,7 @@
 
       function saveState() {
         let snapshot;
-        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));const now=new Date().toISOString();snapshot.syncMeta=snapshot.syncMeta||{};snapshot.syncMeta.deletedNoteIds=snapshot.syncMeta.deletedNoteIds||[];const present=new Set(snapshot.notes.map(n=>n.id));for(const oldNote of (lastSavedState.notes||[]))if(!present.has(oldNote.id)&&!snapshot.syncMeta.deletedNoteIds.includes(oldNote.id))snapshot.syncMeta.deletedNoteIds.push(oldNote.id);for(const n of snapshot.notes){const old=prev.get(n.id);if(old&&JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})){n.updatedAt=now;const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}state.syncMeta=snapshot.syncMeta;} }
+        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));const now=new Date().toISOString();snapshot.syncMeta=snapshot.syncMeta||{};for(const k of ['deletedNoteIds','deletedFolderIds','deletedLabelIds','deletedAttachmentIds'])snapshot.syncMeta[k]=snapshot.syncMeta[k]||[];const present=new Set(snapshot.notes.map(n=>n.id));for(const oldNote of (lastSavedState.notes||[])){if(!present.has(oldNote.id)&&!snapshot.syncMeta.deletedNoteIds.includes(oldNote.id))snapshot.syncMeta.deletedNoteIds.push(oldNote.id);const current=snapshot.notes.find(n=>n.id===oldNote.id);const currentAtt=new Set((current&&current.attachments||[]).map(a=>a.id));for(const att of (oldNote.attachments||[]))if(!currentAtt.has(att.id)&&!snapshot.syncMeta.deletedAttachmentIds.some(x=>x.noteId===oldNote.id&&x.attachmentId===att.id))snapshot.syncMeta.deletedAttachmentIds.push({noteId:oldNote.id,attachmentId:att.id});}for(const kind of ['folders','labels']){const before=new Map((lastSavedState[kind]||[]).map(x=>[x.id,x]));const after=new Set((snapshot[kind]||[]).map(x=>x.id));const tombKey=kind==='folders'?'deletedFolderIds':'deletedLabelIds';for(const x of (lastSavedState[kind]||[]))if(!after.has(x.id)&&!snapshot.syncMeta[tombKey].includes(x.id))snapshot.syncMeta[tombKey].push(x.id);for(const x of (snapshot[kind]||[])){const oldItem=before.get(x.id);if(oldItem&&JSON.stringify(oldItem)!==JSON.stringify(x))x.updatedAt=now;}}for(const n of snapshot.notes){const old=prev.get(n.id);if(old&&JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})){n.updatedAt=now;const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}state.syncMeta=snapshot.syncMeta;} }
         catch (error) {
           console.error('Could not prepare data for IndexedDB:', error);
           showToast('Could not prepare local data for saving');
