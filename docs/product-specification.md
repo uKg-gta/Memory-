@@ -18,7 +18,8 @@ This document records the product decisions approved for the current direction. 
 
 - Full-screen on mobile; centred pop-up on tablet and desktop.
 - Optional title; writing can begin directly in the body.
-- Autosave while typing when signed in, online, and successfully synchronised; editing is disabled while offline or while sync is pending or failed.
+- Autosave locally while signed in and online after the initial cloud sync succeeds. Routine manual syncs do not lock the editor; an active draft is protected and reconciled after the sync.
+- Editing remains disabled while offline, before the initial sync succeeds, or after a sync failure.
 - Keep the current minimal Attachment, Add link, and More toolbar.
 - Basic formatting: bold, italic, underline, bulleted lists, numbered lists, and checklists.
 - Completed checklist items stay in place and show strikethrough.
@@ -76,7 +77,11 @@ This document records the product decisions approved for the current direction. 
 - Google sign-in is required before account notes are displayed.
 - Use IndexedDB as a per-account cache for content already downloaded to the current device; it is not an independent source of truth.
 - Offline mode is read-only. Do not queue offline edits or upload divergent local changes.
-- The app remains read-only until the device is online and the latest cloud sync has completed successfully.
+- After sign-in on each app launch, perform one initial cloud sync before enabling editing.
+- After that initial sync, cloud sync is user-triggered only. A persistent Sync control sits beside search and remains available in the note editor.
+- Do not start cloud sync automatically on a timer, local autosave, app focus/visibility, or network reconnection.
+- Manual sync must not disable an already-editable open editor. Protect the active draft from being overwritten; if a concurrent cloud edit is detected, preserve both versions as a conflict copy.
+- Offline mode remains read-only. Reconnecting restores the ability to request Sync but does not start it automatically.
 - PWA app-shell access should remain available offline. Previously downloaded notes and attachment blobs may be viewed; content not downloaded to that device is unavailable offline.
 - Account data must remain isolated across users sharing the same browser profile.
 - Complete backup and restore should include notes, attachments, folders, labels, archive/trash state, and preferences. Validate backup data and test restore before describing it as production-ready.
@@ -97,5 +102,5 @@ This document records the product decisions approved for the current direction. 
 - Use ownership-based RLS for every user-data table and a private Storage bucket for attachment files.
 - Use stable client IDs, paginated reads, deletion tombstones, and server-authoritative update versions.
 - Detect concurrent changes with compare-and-swap checks; preserve concurrent note edits as conflict copies instead of silently overwriting them.
-- Supabase Realtime currently provides prompt note-change notifications. Folder and label changes are detected by the periodic refresh fallback until their own subscriptions are implemented.
+- Supabase Realtime notifications may indicate that cloud changes are available, but they do not trigger a sync. Users retrieve changes with the persistent Sync control; there is no periodic refresh fallback.
 - Sync, OAuth redirects, session refresh, offline recovery, attachment transfers, account reset, and cross-device conflicts require real-browser acceptance tests before production release.
