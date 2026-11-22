@@ -540,7 +540,7 @@
           const folderByUuid=new Map(freshFolders.map(x=>[x.id,x]));
           const localNoteById=new Map(state.notes.map(n=>[n.id,n]));
           const merged=[],deletedIds=(state.syncMeta&&state.syncMeta.deletedNoteIds)||[];
-          if(deletedIds.length){const tombstone=new Date().toISOString();const q=await supabaseClient.from('notes').update({deleted_at:tombstone,updated_at:tombstone}).eq('user_id',userId).in('client_id',deletedIds);if(q.error)throw q.error;}
+          if(deletedIds.length){const tombstone=new Date().toISOString();const oldRows=remoteNotes.filter(n=>deletedIds.includes(n.client_id));for(const oldNote of oldRows){const files=await supabaseClient.from('attachments').select('storage_path').eq('user_id',userId).eq('note_id',oldNote.id);if(files.error)throw files.error;if(files.data&&files.data.length){const rm=await supabaseClient.storage.from('memory-attachments').remove(files.data.map(x=>x.storage_path));if(rm.error)throw rm.error;const mark=await supabaseClient.from('attachments').update({deleted_at:tombstone}).eq('user_id',userId).eq('note_id',oldNote.id);if(mark.error)throw mark.error;}}const q=await supabaseClient.from('notes').update({deleted_at:tombstone,updated_at:tombstone}).eq('user_id',userId).in('client_id',deletedIds);if(q.error)throw q.error;}
           for(const n of state.notes){
             const r=noteMap.get(n.id),localTime=Date.parse(n.updatedAt||n.createdAt||0)||0,remoteTime=r?(Date.parse(r.updated_at||r.created_at||0)||0):0;
             if(r&&r.deleted_at&&Date.parse(r.deleted_at)>=localTime)continue;
@@ -569,7 +569,7 @@
           const rel=await supabaseClient.from('note_labels').select('note_id,label_id,note_client_id,label_client_id').eq('user_id',userId);
           if(rel.error)throw rel.error;
           const relByNote=new Map();for(const x of (rel.data||[])){const key=x.note_client_id||freshNotes.find(n=>n.id===x.note_id)?.client_id;const label=x.label_client_id||freshLabels.find(l=>l.id===x.label_id)?.client_id;if(key&&label){if(!relByNote.has(key))relByNote.set(key,[]);relByNote.get(key).push(label);}}
-          for(const n of merged){const cloudLabels=relByNote.get(n.id);if(cloudLabels)n.labelIds=Array.from(new Set([...(n.labelIds||[]),...cloudLabels]));}
+          for(const n of merged)n.labelIds=relByNote.get(n.id)||[];
           // Attachment metadata and binary files. Local Blobs remain in IndexedDB; remote files download when absent locally.
           const remoteAttachments=await fetchAllRows('attachments','id,user_id,note_id,client_id,storage_path,file_name,mime_type,size_bytes,created_at,deleted_at',userId);
           const deletedAttachments=(state.syncMeta&&state.syncMeta.deletedAttachmentIds)||[];
@@ -2589,6 +2589,8 @@
 
       // Retry pending link titles when connectivity returns.
       window.addEventListener('online',()=>{retryPendingLinkMetadata();queueCloudSync(250);});
+      window.addEventListener('focus',()=>queueCloudSync(250));
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')queueCloudSync(250);});
 
       // PWA install prompt (Chrome/Edge); iOS users can use Share > Add to Home Screen.
       window.addEventListener('beforeinstallprompt', event => {
