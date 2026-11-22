@@ -22,6 +22,7 @@
   <script src="./note-editor-core.js"></script>
   <script src="./note-attachment-policy.js"></script>
   <script src="./note-realtime-core.js"></script>
+  <script src="./note-link-preview.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -214,7 +215,13 @@
       background: var(--border-strong);
       border-radius: 9999px;
     }
-  </style>
+      #editor-links-list [data-open-link]:focus-visible,
+    #attachment-menu [role="menuitem"]:focus-visible {
+      outline: 2px solid var(--text-main);
+      outline-offset: 2px;
+    }
+    #attachment-menu [role="menuitem"]:disabled { opacity: .45; cursor: not-allowed; }
+</style>
 </head>
 <body class="min-h-screen bg-main text-main auth-locked">
   <section id="auth-gate" class="fixed inset-0 z-[100] hidden items-center justify-center bg-main px-5 py-8" aria-labelledby="auth-gate-title">
@@ -500,6 +507,23 @@
         <button id="confirm-ok-btn" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium">
           Confirm
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-app attachment rename dialog -->
+  <div id="attachment-rename-overlay" class="hidden fixed inset-0 z-[60] bg-black/45 p-4 flex items-center justify-center">
+    <div role="dialog" aria-modal="true" aria-labelledby="attachment-rename-title" aria-describedby="attachment-rename-description" tabindex="-1" class="w-full max-w-sm rounded-2xl bg-elevated border border-muted p-5 space-y-4" style="box-shadow: var(--shadow-modal);">
+      <div class="space-y-1.5">
+        <h3 id="attachment-rename-title" class="text-base font-semibold text-main">Rename attachment</h3>
+        <p id="attachment-rename-description" class="text-sm text-muted leading-relaxed">Choose a new file name. The file contents will not change.</p>
+      </div>
+      <label for="attachment-rename-input" class="block text-xs font-medium text-main">File name</label>
+      <input id="attachment-rename-input" type="text" maxlength="120" autocomplete="off" class="w-full rounded-xl border border-muted bg-surface px-3 py-2 text-sm text-main" />
+      <p id="attachment-rename-error" class="text-xs text-red-600 min-h-[1rem]" role="status" aria-live="polite"></p>
+      <div class="flex items-center justify-end gap-2 pt-1">
+        <button id="attachment-rename-cancel" type="button" class="px-3.5 py-2 rounded-xl border border-muted text-xs font-medium text-main hover:bg-surface">Cancel</button>
+        <button id="attachment-rename-save" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium">Save</button>
       </div>
     </div>
   </div>

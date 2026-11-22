@@ -530,12 +530,13 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           if (title) title.readOnly = readOnly;
           if (body) body.contentEditable = String(!readOnly);
           document.querySelectorAll('#editor-checklist-items input').forEach(el => { el.disabled = readOnly && el.type === 'checkbox'; el.readOnly = readOnly && el.type !== 'checkbox'; });
-          document.querySelectorAll('#editor-panel button').forEach(btn => { btn.disabled = readOnly && !btn.matches('#editor-done-btn,[data-preview-att],[data-open-link],[data-sync-trigger]'); });
+          document.querySelectorAll('#editor-panel button').forEach(btn => { btn.disabled = readOnly && !btn.matches('#editor-done-btn,[data-preview-att],[data-att-menu],[data-open-link],[data-sync-trigger]'); });
           const status = document.getElementById('editor-save-status');
           if (status && readOnly) status.textContent = !navigator.onLine ? 'Offline · read-only' : 'Read-only until cloud sync completes';
         }
         document.querySelectorAll('#main-content button').forEach(btn => { btn.disabled = readOnly && !btn.matches('[data-open-folder],[data-open-label]'); });
         document.querySelectorAll('#main-content input,#main-content select,#main-content textarea').forEach(el => { if (readOnly) el.disabled = true; });
+        syncAttachmentMenuReadOnly(readOnly);
         updateSyncButton();
       }
 
@@ -1876,6 +1877,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       }
 
       function closeEditor() {
+        closeAttachmentMenu({ restoreFocus: false });
+        if (attachmentRenameTargetId) cancelAttachmentRename(false);
         clearTimeout(autoSaveTimer);
         if (syncInProgress && editorDraft && activeSyncEditorDrafts) {
           const closingDraft = captureOpenEditorDraft();
@@ -2061,31 +2064,241 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         refreshIcons();
       }
 
+      let activeAttachmentMenu = null;
+      let attachmentRenameTargetId = null;
+
       function renderEditorAttachments() {
+        closeAttachmentMenu({ restoreFocus: false });
         const section = document.getElementById('editor-attachments-section');
         const list = document.getElementById('editor-attachments-list');
         const attachments = editorDraft.attachments || [];
         if (!attachments.length) { section.classList.add('hidden'); list.innerHTML = ''; return; }
         section.classList.remove('hidden');
-        list.innerHTML = attachments.map(att => `
-          <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">
-            <button type="button" data-preview-att="${att.id}" class="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80">
-              <span class="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0 text-muted"><i data-lucide="${['PNG','JPG','JPEG','WEBP','GIF','SVG'].includes(att.type) ? 'image' : 'file-text'}" class="w-3.5 h-3.5"></i></span>
-              <span class="min-w-0"><span class="block text-xs font-medium text-main truncate">${escapeHtml(att.name)}</span><span class="block text-[11px] text-muted">${escapeHtml(att.type)} · ${escapeHtml(att.size)}</span></span>
-            </button>
-            <button type="button" data-remove-att="${att.id}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main shrink-0" title="More attachment options" aria-label="More options for ${escapeHtml(att.name)}"><i data-lucide="more-vertical" class="w-3.5 h-3.5"></i></button>
-          </div>
-        `).join('');
+        list.innerHTML = attachments.map(att => {
+          const id = escapeHtml(att.id);
+          const fileName = escapeHtml(att.name || 'Attachment');
+          const fileType = escapeHtml(att.type || 'FILE');
+          const fileSize = escapeHtml(att.size || '');
+          return '<div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">' +
+            '<button type="button" data-preview-att="' + id + '" class="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80">' +
+              '<span class="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0 text-muted"><i data-lucide="' +
+                (['PNG','JPG','JPEG','WEBP','GIF','SVG','AVIF'].includes(att.type) ? 'image' : 'file-text') +
+              '" class="w-3.5 h-3.5"></i></span>' +
+              '<span class="min-w-0"><span class="block text-xs font-medium text-main truncate">' + fileName +
+              '</span><span class="block text-[11px] text-muted">' + fileType + ' · ' + fileSize + '</span></span>' +
+            '</button>' +
+            '<button type="button" data-att-menu="' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Options for ' + fileName +
+              '" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main shrink-0" style="min-width:44px;min-height:44px" title="Attachment options">' +
+              '<i data-lucide="more-vertical" class="w-3.5 h-3.5"></i></button>' +
+          '</div>';
+        }).join('');
+
         list.querySelectorAll('[data-preview-att]').forEach(btn => btn.addEventListener('click', () => openAttachmentPreview(btn.getAttribute('data-preview-att'))));
-        list.querySelectorAll('[data-remove-att]').forEach(btn => btn.addEventListener('click', () => {
-          const aid = btn.getAttribute('data-remove-att');
-          const att = editorDraft.attachments.find(a => a.id === aid);
-          openConfirm({
-            title: 'Remove attachment?', message: `Remove “${att ? att.name : 'this file'}” from the note?`, destructive: true,
-            onConfirm: () => { editorDraft.attachments = editorDraft.attachments.filter(a => a.id !== aid); renderEditorAttachments(); scheduleAutoSave(); }
-          });
+        list.querySelectorAll('[data-att-menu]').forEach(btn => btn.addEventListener('click', event => {
+          event.stopPropagation();
+          toggleAttachmentMenu(btn.getAttribute('data-att-menu'), btn);
         }));
         refreshIcons();
+      }
+
+      function closeAttachmentMenu(options) {
+        if (!activeAttachmentMenu) return;
+        const config = options || {};
+        const current = activeAttachmentMenu;
+        activeAttachmentMenu = null;
+        current.cleanup();
+        current.panel.remove();
+        if (current.trigger && current.trigger.isConnected) {
+          current.trigger.setAttribute('aria-expanded', 'false');
+          if (config.restoreFocus) current.trigger.focus();
+        }
+      }
+
+      function syncAttachmentMenuReadOnly(readOnly) {
+        if (!activeAttachmentMenu) return;
+        activeAttachmentMenu.panel.querySelectorAll('[data-att-menu-action]').forEach(item => {
+          const action = item.getAttribute('data-att-menu-action');
+          item.disabled = !!readOnly && (action === 'rename' || action === 'remove');
+        });
+      }
+
+      function toggleAttachmentMenu(attachmentId, trigger) {
+        if (activeAttachmentMenu && activeAttachmentMenu.trigger === trigger) {
+          closeAttachmentMenu({ restoreFocus: false });
+          return;
+        }
+        closeAttachmentMenu({ restoreFocus: false });
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+
+        const panel = document.createElement('div');
+        panel.id = 'attachment-menu';
+        panel.setAttribute('role', 'menu');
+        panel.setAttribute('aria-label', 'Options for ' + (attachment.name || 'attachment'));
+        panel.className = 'rounded-xl bg-elevated border border-muted p-1';
+        Object.assign(panel.style, {
+          position: 'fixed', zIndex: '50', minWidth: '180px',
+          maxWidth: 'calc(100vw - 16px)', maxHeight: 'calc(100vh - 16px)',
+          overflowY: 'auto', boxShadow: 'var(--shadow-card)'
+        });
+
+        const readOnly = !canEditCloudData();
+        [['preview', 'Preview'], ['download', 'Download'], ['rename', 'Rename'], ['remove', 'Remove']].forEach(([action, label]) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.setAttribute('role', 'menuitem');
+          item.setAttribute('data-att-menu-action', action);
+          item.textContent = label;
+          item.className = 'w-full text-left text-xs font-medium text-main rounded-lg px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10';
+          item.style.minHeight = '44px';
+          item.disabled = readOnly && (action === 'rename' || action === 'remove');
+          panel.append(item);
+        });
+
+        document.body.append(panel);
+        trigger.setAttribute('aria-expanded', 'true');
+        const rect = trigger.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const edge = 8;
+        const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+        const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+        const panelWidth = Math.min(panelRect.width, viewportWidth - edge * 2);
+        const panelHeight = Math.min(panelRect.height, viewportHeight - edge * 2);
+        const left = Math.max(edge, Math.min(rect.right - panelWidth, viewportWidth - panelWidth - edge));
+        let top = rect.bottom + 4;
+        if (top + panelHeight > viewportHeight - edge) top = rect.top - panelHeight - 4;
+        top = Math.max(edge, Math.min(top, viewportHeight - panelHeight - edge));
+        panel.style.left = left + 'px';
+        panel.style.top = top + 'px';
+
+        const onOutsidePointerDown = event => {
+          if (!panel.contains(event.target) && !trigger.contains(event.target)) closeAttachmentMenu({ restoreFocus: false });
+        };
+        const onViewportChange = () => closeAttachmentMenu({ restoreFocus: false });
+        const cleanup = () => {
+          document.removeEventListener('pointerdown', onOutsidePointerDown, true);
+          window.removeEventListener('scroll', onViewportChange, true);
+          window.removeEventListener('resize', onViewportChange);
+        };
+        activeAttachmentMenu = { panel, trigger, cleanup };
+
+        panel.addEventListener('keydown', event => {
+          if (event.key === 'Escape') {
+            event.preventDefault(); event.stopPropagation();
+            closeAttachmentMenu({ restoreFocus: true });
+            return;
+          }
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+          event.preventDefault(); event.stopPropagation();
+          const items = Array.from(panel.querySelectorAll('[role="menuitem"]:not([disabled])'));
+          if (!items.length) return;
+          const index = items.indexOf(document.activeElement);
+          const next = event.key === 'ArrowDown'
+            ? (index + 1 + items.length) % items.length
+            : (index <= 0 ? items.length - 1 : index - 1);
+          items[next].focus();
+        });
+        panel.addEventListener('click', event => {
+          const item = event.target.closest('[data-att-menu-action]');
+          if (!item || item.disabled) return;
+          const action = item.getAttribute('data-att-menu-action');
+          closeAttachmentMenu({ restoreFocus: true });
+          runAttachmentMenuAction(action, attachmentId);
+        });
+        document.addEventListener('pointerdown', onOutsidePointerDown, true);
+        window.addEventListener('scroll', onViewportChange, true);
+        window.addEventListener('resize', onViewportChange);
+        const firstItem = panel.querySelector('[role="menuitem"]:not([disabled])');
+        if (firstItem) firstItem.focus();
+      }
+
+      function runAttachmentMenuAction(action, attachmentId) {
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+        if (action === 'preview') openAttachmentPreview(attachmentId);
+        else if (action === 'download') downloadAttachment(attachmentId);
+        else if (action === 'rename') openAttachmentRename(attachmentId);
+        else if (action === 'remove') {
+          openConfirm({
+            title: 'Remove attachment?',
+            message: 'Remove “' + (attachment ? attachment.name : 'this file') + '” from the note?',
+            destructive: true,
+            onConfirm: () => { editorDraft.attachments = editorDraft.attachments.filter(item => item.id !== attachmentId); renderEditorAttachments(); scheduleAutoSave(); }
+          });
+        }
+      }
+
+      function downloadAttachment(attachmentId) {
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+        const blob = attachment.blob || attachment.fileBlob;
+        if (!(blob instanceof Blob)) {
+          showToast('This older attachment has no saved file data. Please attach the file again.');
+          return;
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = attachment.name || 'Attachment';
+        anchor.hidden = true;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      }
+
+      function openAttachmentRename(attachmentId) {
+        if (!canEditCloudData()) return;
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+        attachmentRenameTargetId = attachmentId;
+        const input = document.getElementById('attachment-rename-input');
+        input.value = attachment.name || '';
+        document.getElementById('attachment-rename-error').textContent = '';
+        document.getElementById('attachment-rename-overlay').classList.remove('hidden');
+        input.focus();
+        input.select();
+      }
+
+      function cancelAttachmentRename(restoreFocus) {
+        const attachmentId = attachmentRenameTargetId;
+        attachmentRenameTargetId = null;
+        document.getElementById('attachment-rename-overlay').classList.add('hidden');
+        document.getElementById('attachment-rename-error').textContent = '';
+        if (restoreFocus !== false && attachmentId) {
+          const trigger = Array.from(document.querySelectorAll('[data-att-menu]'))
+            .find(item => item.getAttribute('data-att-menu') === attachmentId);
+          if (trigger) trigger.focus();
+        }
+      }
+
+      function saveAttachmentRename() {
+        if (!canEditCloudData() || !attachmentRenameTargetId) return;
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentRenameTargetId);
+        if (!attachment) { cancelAttachmentRename(false); return; }
+        const cleaned = document.getElementById('attachment-rename-input').value.trim();
+        let error = '';
+        if (!cleaned) error = 'Enter a file name.';
+        else if (cleaned.length > 120) error = 'File names must be 120 characters or fewer.';
+        else if (/[\/\\\u0000-\u001f\u007f-\u009f]/.test(cleaned)) error = 'File names cannot contain /, \\, or control characters.';
+        if (error) {
+          document.getElementById('attachment-rename-error').textContent = error;
+          document.getElementById('attachment-rename-input').focus();
+          return;
+        }
+        const attachmentId = attachmentRenameTargetId;
+        attachment.name = cleaned;
+        const dot = cleaned.lastIndexOf('.');
+        const extension = dot > 0 && dot < cleaned.length - 1 ? cleaned.slice(dot + 1) : '';
+        attachment.type = extension ? extension.toUpperCase() : 'FILE';
+        attachmentRenameTargetId = null;
+        document.getElementById('attachment-rename-overlay').classList.add('hidden');
+        document.getElementById('attachment-rename-error').textContent = '';
+        renderEditorAttachments();
+        scheduleAutoSave();
+        const trigger = Array.from(document.querySelectorAll('[data-att-menu]'))
+          .find(item => item.getAttribute('data-att-menu') === attachmentId);
+        if (trigger) trigger.focus();
       }
 
       let previewObjectUrl = null;
