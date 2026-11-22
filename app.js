@@ -1737,8 +1737,17 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       async function fetchLinkMetadata(noteId, linkId, url) {
         try {
           if (!navigator.onLine) return;
-          // The CSP intentionally blocks arbitrary cross-origin fetches. Keep external links usable without retrying a request the policy must reject.
-          if (new URL(url, window.location.href).origin !== window.location.origin) return;
+          // The CSP intentionally blocks arbitrary cross-origin fetches. Keep the URL usable and stop retrying metadata requests the policy must reject.
+          if (new URL(url, window.location.href).origin !== window.location.origin) {
+            const note = state.notes.find(n => n.id === noteId);
+            const link = note && (note.links || []).find(l => l.id === linkId);
+            if (link) { link.metadataPending = false; saveState(); }
+            if (editorDraft && editorDraft.id === noteId) {
+              const draftLink = (editorDraft.links || []).find(l => l.id === linkId);
+              if (draftLink) { draftLink.metadataPending = false; renderEditorLinks(); }
+            }
+            return;
+          }
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 6500);
           const response = await fetch(url, { signal: controller.signal, mode: 'cors' });
