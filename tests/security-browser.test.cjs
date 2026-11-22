@@ -167,3 +167,13 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+test('attachment previews keep active content isolated or download-only', () => {
+  const fs = require('node:fs');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /PDF preview is disabled for safety/);
+  assert.match(html, /sandbox=""/);
+  assert.match(html, /\['image\\/png', 'image\\/jpeg', 'image\\/gif', 'image\\/webp', 'image\\/avif', 'image\\/bmp'\]/);
+  assert.doesNotMatch(html, /sandbox="allow-forms allow-scripts allow-popups allow-popups-to-escape-sandbox"/);
+  assert.match(html, /previewObjectUrl === textPreviewUrl/);
+});
