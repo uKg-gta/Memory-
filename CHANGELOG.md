@@ -159,3 +159,12 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Preserved the existing read-only policy before the initial successful sync, while offline, and after a sync failure.
 - Updated the product specification to reflect the manual-sync policy.
 - Bumped the PWA shell cache to v34 so installed apps receive the updated sync controls and behavior.
+
+
+## 2026-11-23 — Content Security Policy and attachment source cleanup
+
+- Added a restrictive meta-delivered Content Security Policy as the first element in the document head; no inline script execution is permitted.
+- Extracted the application controller into `app.js`, added it to the service-worker shell, and bumped the cache to v35.
+- Restricted link metadata fetching to same-origin URLs and replaced remote website iframes with an explicit open-externally fallback.
+- Documented meta-CSP limitations: it cannot enforce `frame-ancestors`, `report-uri`, or `sandbox`.
+- Audited the root-level `note-attachment-preview.js`: it is the superseded universal preview engine, is not loaded or cached, and is contradicted by the changelog's restored built-in viewer. Removed the stale duplicate; the built-in preview implementation in `app.js` is the single source of truth.

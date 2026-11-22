@@ -51,6 +51,8 @@ Backup and restore behaviour must be tested against the current account model. A
 Required app-shell files include:
 
 - `index.html`
+- `app.js`
+- `tailwind.css`
 - `manifest.webmanifest`
 - `sw.js`
 - `icon-192.png`
@@ -63,7 +65,6 @@ Required app-shell files include:
 - `note-auth-core.js`
 - `note-editor-core.js`
 - `note-attachment-policy.js`
-- `note-attachment-preview.js`
 - `note-realtime-core.js`
 
 PWA installation and service workers require localhost or HTTPS. The service worker preserves an offline app shell and may cache only the exact external CDN URLs explicitly listed in its allowlist. Supabase API requests, Supabase Storage downloads/uploads, and all other non-allowlisted external requests must bypass Cache Storage.
@@ -72,8 +73,9 @@ Navigation responses replace the cached app shell only when the network response
 
 ## Application modules and automated tests
 
-The current vanilla-JavaScript entry point remains `index.html`; the following browser modules isolate independently testable responsibilities:
+The current vanilla-JavaScript entry point is `index.html`, which loads the application controller from `app.js`; the following browser modules isolate independently testable responsibilities:
 
+- `app.js` contains the application controller previously embedded in `index.html`.
 - `note-auth-core.js` wraps Supabase session restoration, auth-state subscriptions, Google OAuth initiation, and sign-out.
 - `note-storage.js` owns the IndexedDB open/read/write/delete lifecycle for account-keyed workspace snapshots.
 - `note-state-core.js` owns default state, structured cloning, and state normalization.
@@ -96,6 +98,7 @@ Browser-side metadata fetching can fail when a target site does not allow cross-
 - Validate imported backup data before writing it to local storage.
 - Treat note content and imported files as untrusted data; sanitize note HTML at the editor and sync boundaries.
 - Keep HTML attachment previews sandboxed so embedded content cannot access the parent application.
+- Keep `script-src` free of `'unsafe-inline'`; externalize application code and avoid inline event-handler attributes.
 
 
 ## Issue 4 live verification addendum — 2026-11-22
@@ -107,6 +110,10 @@ Browser-side metadata fetching can fail when a target site does not allow cross-
 
 The current Storage bucket is private. The approved attachment policy is a decimal 50 MB (50,000,000 bytes) maximum per file with no MIME-type allowlist; the application rejects files above that size both when selected and immediately before upload. File extensions and declared MIME types are not restricted. Supabase Storage must enforce the same 50,000,000-byte bucket-level ceiling, and the project's global Storage upload ceiling must be at least 50,000,000 bytes. The live bucket setting still requires confirmation through the Storage bucket configuration API or Dashboard; do not infer it from application-side checks.
 
-The current HTML document does not yet define a Content Security Policy. Review and deploy an appropriate CSP through the hosting layer before production; GitHub Pages does not provide arbitrary per-response security headers.
+The app defines a restrictive Content Security Policy using the first `<meta http-equiv="Content-Security-Policy">` element in `index.html`, because GitHub Pages cannot configure arbitrary response headers. The policy defaults to `default-src 'none'`; scripts are limited to the app origin and the pinned jsDelivr/unpkg CDNs; styles allow the app origin, Google Fonts CSS, and `'unsafe-inline'` solely for the existing inline stylesheet and style attributes; fonts are limited to `fonts.gstatic.com`; images allow same-origin, data, and Blob URLs; media and frames allow Blob URLs; connections allow same-origin and the dedicated Supabase HTTPS/WebSocket origin; workers and the manifest are same-origin; objects and base URLs are denied; forms are same-origin only. `script-src` does not include `'unsafe-inline'`.
+
+The application controller is externalized in `app.js`. Arbitrary cross-origin link-title metadata fetches are skipped (same-origin metadata fetches remain eligible) and the URL remains usable. Website previews no longer embed remote pages; the UI directs users to open the URL externally. HTML attachment previews remain sandboxed; scripts in Blob documents are not enabled by the parent policy. PDF Blob previews retain the native unsandboxed iframe for browser PDF compatibility, but browser-native PDF viewer behavior varies and must be verified in supported browsers.
+
+A meta-delivered CSP cannot enforce `frame-ancestors`, `report-uri`/reporting endpoints, or the CSP `sandbox` directive. These protections require HTTP response headers and are not represented in this policy. The policy is therefore a GitHub Pages-compatible baseline, not a substitute for response-header controls on a host that supports them.
 
 Live Google OAuth, authenticated cross-account RLS attempts, real attachment lifecycle, interruption/recovery, and end-to-end multi-tab Realtime delivery remain unverified. The app remains a prototype until those acceptance tests and security hardening are complete.

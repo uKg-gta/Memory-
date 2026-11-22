@@ -37,6 +37,7 @@ Prototype capabilities and browser/platform support still require real-device te
 ## Repository layout
 
 - `index.html` — application entry point
+- `app.js` — application controller
 - `manifest.webmanifest` — installable PWA metadata
 - `sw.js` — service worker and offline caching
 - `icon-192.png`, `icon-512.png` — app icons
