@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { fingerprintNote, fingerprintAttachments, attachmentMetadataUpdate } = require('../note-sync-core.js');
 
 test('note fingerprint includes only cloud-synchronized note fields', () => {
@@ -141,4 +143,13 @@ test('conflict-copy lookup reuses an identical existing copy instead of creating
   assert.equal(find([existing, changed], source, fingerprint, 'Conflict copy — To buy'), existing);
   assert.equal(find([changed], source, fingerprint, 'Conflict copy — To buy'), null);
   assert.equal(find([], source, fingerprint, 'Conflict copy — To buy'), null);
+});
+
+
+test('production stylesheet includes the responsive note-grid utilities used by the app', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'tailwind.css'), 'utf8');
+  assert.match(css, /\\.grid\\{display:grid\\}/);
+  assert.match(css, /\\.grid-cols-2\\{grid-template-columns:repeat\\(2,minmax\\(0,1fr\\)\\)\\}/);
+  assert.match(css, /sm\\\\:grid-cols-3/);
+  assert.match(css, /lg\\\\:grid-cols-4/);
 });
