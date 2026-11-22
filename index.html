@@ -590,7 +590,15 @@
             const r=noteMap.get(n.id),localTime=Date.parse(n.updatedAt||n.createdAt||0)||0,remoteTime=r?(Date.parse(r.updated_at||r.created_at||0)||0):0;
             if(r&&r.deleted_at&&Date.parse(r.deleted_at)>=localTime)continue;
             const remoteFolder=r&&r.folder_id?folderByUuid.get(r.folder_id):null;
-            if(r&&remoteTime>localTime){
+            if(r&&localTime>remoteTime){
+              // Only a strictly newer local note may overwrite the cloud copy.
+              // Equal timestamps mean the cloud copy is already current; uploading
+              // again would emit another Realtime event and create a sync loop.
+              const folder=folderByClient.get(n.folderId);
+              uploadsNotes.push({user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),folder_id:folder?folder.id:null,archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:n.updatedAt||new Date().toISOString(),deleted_at:null});
+              merged.push(n);
+            }else if(r){
+              // Cloud wins on equal timestamps and when it is newer.
               merged.push({id:n.id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:remoteFolder?remoteFolder.client_id:(n.folderId||''),labelIds:n.labelIds||[],attachments:n.attachments||[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||n.createdAt||Date.now(),updatedAt:r.updated_at});
             }else{
               const folder=folderByClient.get(n.folderId);
