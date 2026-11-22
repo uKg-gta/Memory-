@@ -538,6 +538,10 @@
           if(resetMarker&&Date.parse(resetMarker.updated_at||0)>Date.parse((state.syncMeta&&state.syncMeta.accountResetAt)||0)){
             const retainedTheme=state.theme==='dark'?'dark':'light';
             state=normalizeState({...getDefaultData(),theme:retainedTheme,syncMeta:{accountResetAt:resetMarker.updated_at}});
+            editingNoteId=null;editorDraft=null;clearTimeout(autoSaveTimer);
+            document.getElementById('editor-overlay').classList.add('hidden');
+            currentView='home';activeFolderId=null;activeLabelId=null;searchQuery='';
+            selectionMode=false;selectedIds.clear();
             lastSavedState=cloneData(state);suppressDeleteDetection=true;await saveState();suppressDeleteDetection=false;
           }
           const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
@@ -1539,7 +1543,7 @@
               </div>
               <div class="py-4">
                 <div class="text-sm font-medium">Reset Memory</div>
-                <div class="text-xs text-muted mt-0.5">Permanently erase this signed-in Google account's notes, folders, labels, and attached files from this device and cloud. Your Google account stays signed in.</div>
+                <div class="text-xs text-muted mt-0.5">Permanently erase this signed-in Google account's notes, folders, labels, and attached files from this device and cloud. Other devices clear their offline copies on their next sync. Your Google account stays signed in.</div>
                 <button id="reset-memory-btn" type="button" class="mt-3 px-3.5 py-2 rounded-xl border border-red-500/40 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-500/10">Reset Memory</button>
               </div>
               <div class="py-4">
