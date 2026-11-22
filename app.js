@@ -180,7 +180,11 @@
             const retainedTheme=state.theme==='dark'?'dark':'light';
             state=normalizeState({...getDefaultData(),theme:retainedTheme,syncMeta:{accountResetAt:resetMarker.updated_at}});
             editingNoteId=null;editorDraft=null;clearTimeout(autoSaveTimer);
-            document.getElementById('editor-overlay').classList.add('hidden');
+            closeAttachmentMenu({ restoreFocus: false });
+            if (attachmentRenameTargetId) cancelAttachmentRename(false);
+            closeAttachmentMenu({ restoreFocus: false });
+          if (attachmentRenameTargetId) cancelAttachmentRename(false);
+          document.getElementById('editor-overlay').classList.add('hidden');
             currentView='home';activeFolderId=null;activeLabelId=null;searchQuery='';
             selectionMode=false;selectedIds.clear();
             lastSavedState=cloneData(state);suppressDeleteDetection=true;await saveState();suppressDeleteDetection=false;
@@ -258,6 +262,13 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
                 const up=await supabaseClient.storage.from('memory-attachments').upload(path,blob,{upsert:true,contentType:att.mimeType||blob.type||'application/octet-stream'});
                 if(up.error)throw up.error;
                 const meta=await supabaseClient.from('attachments').upsert({user_id:userId,note_id:nr.id,client_id:att.id,storage_path:path,file_name:att.name||att.fileName||'Attachment',mime_type:att.mimeType||blob.type||'application/octet-stream',size_bytes:blob.size,deleted_at:null},{onConflict:'user_id,client_id'});if(meta.error)throw meta.error;
+              } else if(existing&&!existing.deleted_at){
+                const renamePatch=MemorySyncCore.attachmentMetadataUpdate(existing,att);
+                if(renamePatch){
+                  const metaUpdate=await supabaseClient.from('attachments').update(renamePatch).eq('user_id',userId).eq('client_id',att.id);
+                  if(metaUpdate.error)throw metaUpdate.error;
+                  Object.assign(existing,renamePatch);
+                }
               }
             }
             for(const ra of remoteAttachments.filter(a=>a.note_id===nr.id&&!a.deleted_at)){
@@ -2874,7 +2885,16 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         if (typeof cb === 'function') cb();
       });
 
-      // Attachment preview controls.
+      // Attachment rename and preview controls.
+      document.getElementById('attachment-rename-save').addEventListener('click', saveAttachmentRename);
+      document.getElementById('attachment-rename-cancel').addEventListener('click', () => cancelAttachmentRename(true));
+      document.getElementById('attachment-rename-overlay').addEventListener('click', event => {
+        if (event.target.id === 'attachment-rename-overlay') cancelAttachmentRename(true);
+      });
+      document.getElementById('attachment-rename-input').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); saveAttachmentRename(); }
+        else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancelAttachmentRename(true); }
+      });
       document.getElementById('file-preview-close').addEventListener('click', closeAttachmentPreview);
       document.getElementById('file-preview-overlay').addEventListener('click', e => { if (e.target.id === 'file-preview-overlay') closeAttachmentPreview(); });
 
@@ -2897,11 +2917,15 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         const visible = id => !document.getElementById(id).classList.contains('hidden');
         const drawerOpen = document.getElementById('mobile-drawer').getAttribute('aria-hidden') === 'false';
         const activeModal = visible('file-preview-overlay') ? document.querySelector('#file-preview-overlay [role="dialog"]')
+          : visible('attachment-rename-overlay') ? document.querySelector('#attachment-rename-overlay [role="dialog"]')
           : visible('confirm-overlay') ? document.querySelector('#confirm-overlay [role="alertdialog"]')
+          : activeAttachmentMenu ? activeAttachmentMenu.panel
           : visible('editor-overlay') ? document.getElementById('editor-panel')
           : drawerOpen ? document.getElementById('mobile-drawer') : null;
         if (e.key === 'Escape') {
-          if (visible('file-preview-overlay')) closeAttachmentPreview();
+          if (activeAttachmentMenu) closeAttachmentMenu({ restoreFocus: true });
+          else if (visible('attachment-rename-overlay')) cancelAttachmentRename(true);
+          else if (visible('file-preview-overlay')) closeAttachmentPreview();
           else if (visible('confirm-overlay')) closeConfirm();
           else if (visible('editor-overlay') && !document.getElementById('editor-more-menu').classList.contains('hidden')) {
             document.getElementById('editor-more-menu').classList.add('hidden');
