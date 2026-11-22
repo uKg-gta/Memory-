@@ -78,7 +78,7 @@ The current vanilla-JavaScript entry point remains `index.html`; the following b
 - `note-realtime-core.js` owns account-scoped Realtime channel subscriptions, stale-callback protection, and channel cleanup.
 - `note-sanitizer.js` owns the DOMPurify HTML boundary.
 
-The CI workflow runs Node unit tests for state normalization, sync planning, and auth delegation, plus Playwright browser tests for IndexedDB persistence (including Blob attachments and account separation), service-worker caching, sanitization, and responsive layout. These tests validate isolated modules and browser infrastructure; they do **not** simulate a live Google OAuth provider or a real Supabase project. OAuth redirects, session expiry/refresh, real RLS enforcement, live concurrent edits, and full attachment transfer still require configured staging credentials and manual/acceptance testing.
+The CI workflow runs Node unit tests for state normalization, sync planning, auth delegation, and static database-migration regression checks, plus Playwright browser tests for IndexedDB persistence (including Blob attachments and account separation), service-worker caching, sanitization, and responsive layout. Static migration checks do not execute SQL against a live project. These tests validate isolated modules and browser infrastructure; they do **not** simulate a live Google OAuth provider or a real Supabase project. OAuth redirects, session expiry/refresh, real RLS enforcement, live concurrent edits, and full attachment transfer still require configured staging credentials and manual/acceptance testing.
 
 ## External link metadata
 
