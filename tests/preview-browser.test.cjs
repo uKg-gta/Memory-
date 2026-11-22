@@ -96,7 +96,7 @@ async function openApp(browser) {
   await page.waitForFunction(() => !!window.__memoryTest && window.__memoryTest.isReady());
   // This harness tests the app UI without a real sign-in; keep the signed-out
   // gate from covering the preview/menu controls while retaining read-only mode.
-  await page.addStyleTag({ content: '#app { display: flex !important; } #auth-gate { display: none !important; }' });
+  await page.addStyleTag({ content: 'body.auth-locked #app { display: flex !important; } body.auth-locked #auth-gate { display: none !important; }' });
   await page.evaluate(() => document.body.classList.remove('auth-locked'));
   return { server, context, page };
 }
@@ -275,6 +275,7 @@ test('attachment menu supports positioning, keyboard access, preview, download, 
     await page.locator(trigger).click();
     assert.equal(await page.locator('[data-att-menu-action="rename"]').isDisabled(), false);
     assert.equal(await page.locator('[data-att-menu-action="remove"]').isDisabled(), false);
+    await page.keyboard.press('Escape');
 
     async function beginRename() {
       await page.locator(trigger).click();
