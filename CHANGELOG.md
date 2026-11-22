@@ -1,91 +1,75 @@
-# 2026-11-22 — Cross-device concurrent-write protection
-
-- Replaced unconditional note upserts with optimistic compare-and-swap updates: an existing note is updated only if its cloud `updated_at` still matches the version fetched at sync start.
-- Concurrent writes from another device are detected instead of silently overwriting a newer cloud version; a follow-up sync is requested.
-- New notes use inserts with duplicate-ID handling.
-- Debounced Realtime notifications to coalesce bursts while preserving the 30-second fallback refresh.
-
-# 2026-11-22 — Prevent equal-timestamp sync loop
-
-- Fixed note merge comparison: a local note uploads only when its timestamp is strictly newer than the cloud version; equal timestamps now resolve to the cloud copy and do not cause repeated upserts or Realtime-triggered sync cycles.
-- Kept the 30-second visible-tab fallback refresh unchanged.
-
-# 2026-11-22 — Cloud-first editing with offline read-only cache
-
-- Supabase is the authoritative source for notes, folders, labels, relationships and attachment files.
-- IndexedDB remains only as a per-account read-only cache for notes and attachment blobs already downloaded on that device.
-- Creating, editing, deleting and organizing are disabled unless the device is online and cloud sync has completed successfully.
-- Reconnection refreshes the cache from Supabase; offline edits are not queued or uploaded.
-- Fixed a sync loop where the cache save performed by a sync queued another sync indefinitely.
-- Bumped the PWA shell cache to v17.
-
-# Realtime cross-device note updates
-
-- Added account-scoped Supabase Realtime subscriptions for note-row changes so open devices start syncing immediately instead of waiting for the 30-second polling interval.
-- Reduced the local cloud-sync debounce and ensured sync requests arriving during an active sync are queued for a follow-up pass.
-- Enabled the Memory `notes` table in the `supabase_realtime` publication.
-- Bumped the PWA shell cache to v16.
-
-## 2026-11-22 — Account reset
-- Added a Settings reset action for the currently signed-in Google account.
-- Requires typing RESET; permanently removes that account's cloud notes, folders, labels, relationships, attachment metadata and Storage files, then clears its local workspace and pending sync state.
-- Keeps the Google sign-in session and appearance preference; does not affect other accounts.
-- Reset is online-only and reports errors instead of silently claiming success. A cloud reset marker prevents stale offline copies on other devices from being uploaded again; those copies clear on their next successful sync.
-
 # Changelog
 
-## Memory.latest
+Changes are listed in chronological order, oldest first. The November 22, 2026 work was completed in a concentrated development session; the entries below share that calendar date because that is the date recorded in the repository history. Times are UTC where commit timestamps were verified.
 
-- Added the standalone application entry point and supporting PWA files to the repository root.
-- Added the source archive as a convenient snapshot.
-- Established the current approved prototype baseline.
-- Carries the local-first notes UI and PWA support files.
-- Supabase sign-in and cross-device sync remain postponed.
-- Requires real-device verification for storage, attachment persistence, PWA installation, and offline behaviour.
+## Prototype foundation
 
-## Unreleased
-- Attachment additions, removals, and metadata changes now advance the parent note's sync timestamp.
-- Cross-device sync now downloads a cloud attachment when its local metadata exists but its binary is missing, instead of treating the ID alone as proof the file is present.
-- Added a visible sync-failure notice and a detailed error in Settings; open, online devices now check for remote changes every 30 seconds, while background tabs do not poll.
-- Bumped the PWA shell cache to v14 for the sync reliability update.
-- Made Google sign-in mandatory before Memory can display or edit notes; signed-out users now see a dedicated sign-in screen.
-- Removed the legacy signed-out IndexedDB workspace and old localStorage guest cache on startup. Account-specific workspaces and their offline copies remain intact.
-- Removed automatic migration of signed-out notes into the first Google account; each account now opens only its own workspace.
-- Bumped the PWA cache to v12 so installed copies receive the authentication gate and guest-data cleanup.
-- Added visible keyboard focus indicators, reduced-motion and forced-colour support, and semantic labels for key app controls.
-- Improved keyboard navigation, focus trapping/restoration, dialog semantics, and screen-reader status announcements for the editor, drawer, confirmations, and attachment preview.
-- Made note cards keyboard-operable and added accessible names to checklist and link controls.
-- Bumped the service-worker cache version so updated app assets can be installed.
-- Added folder renaming through the folder options menu. Renaming preserves the folder ID and its notes.
+- Added the standalone HTML/CSS/JavaScript application and PWA shell.
+- Established the Memory.latest interface, note editor, folders, labels, Archive, Trash, search, themes, and responsive layouts.
+- Added IndexedDB persistence, attachment handling, backup/restore interfaces, and the service-worker app shell.
+- Added product vision, product specification, and architecture documentation.
 
+## 2026-11-22 — Account and cloud foundation
 
-## 2026-11-22 — Empty account foundation
+- Replaced seeded sample content with a clean account workspace and added the Supabase project configuration using the publishable browser key.
+- Added Google sign-in through Supabase Auth and account-owned database tables protected by row-level security.
+- Added a private attachment Storage bucket and account-scoped local workspaces.
+- Added authenticated cloud sync for notes, then extended it to folders, labels, note-label relationships, attachment metadata, and attachment binaries.
+- Added paginated reads, deletion tombstones, sync retries, and cleanup for permanently deleted notes.
+- Added account reset for the signed-in account, including cloud and local cleanup and a server reset marker to prevent stale offline copies from being re-uploaded.
+- Added in-app previews for supported links and attachments, including sandboxed HTML previews.
 
-- Replaced seeded sample content with a clean empty workspace and removed the sample-reset control.
-- Bumped IndexedDB to v2 to clear prior prototype/sample records once.
-- Added Supabase browser client configuration using the publishable key and Google sign-in/sign-out controls in Settings.
-- Added account-owned Supabase tables and a private attachment bucket with row-level security.
-- Cloud note synchronisation is not included in this batch; local-first persistence remains in place.
+## 2026-11-22 10:03 UTC — Realtime note refresh
 
+- Added account-scoped Supabase Realtime notifications for note-row changes.
+- Kept a 30-second refresh fallback and queued another sync when a notification arrives during an active sync.
+- Enabled the notes table in the Supabase Realtime publication.
 
-## 2026-11-22 — Initial account-backed note sync
+## 2026-11-22 10:12 UTC — Cloud-authoritative, offline-read-only mode
 
-- Added authenticated, user-scoped note fetch and upsert using the Memory Supabase project and the existing publishable browser key.
-- Added local/cloud merge by client note ID and update timestamps; a blank cloud account does not replace local notes.
-- Added soft-delete tombstones for permanently deleted notes and a manual Sync now action in Settings.
-- Retained IndexedDB as the local offline copy; cloud sync retries when connectivity returns.
-- Folders, labels, attachment metadata, and attachment binaries remain local-only. This milestone needs live multi-device acceptance testing before production readiness can be claimed.
-- Refreshed the PWA service-worker cache version.
+- Made Supabase the authoritative source for notes, folders, labels, relationships, and attachment files.
+- Kept IndexedDB as a per-account cache for previously downloaded content.
+- Disabled data-changing actions while offline, while initial sync is running, or when sync has failed.
+- Preserved read-only access to cached content and the offline app shell.
+- Bumped the PWA shell cache to v17.
 
-- Extended sync to folders, labels, note-label relationships, attachment metadata, and private attachment binaries.
-- Added account-isolated local workspaces so notes from one signed-in account are not silently uploaded to another account on a shared browser.
-- Added paginated cloud reads, focus/visibility sync retries, and attachment cleanup for permanently deleted notes.
-- Pinned and precached Supabase JS 2.119.2; refreshed service-worker cache.
+## 2026-11-22 10:20 UTC — Sync-loop correction
 
+- Fixed equal-timestamp merge handling so matching versions do not repeatedly upload and trigger another sync.
+- Kept the 30-second visible-tab refresh fallback.
 
-## 2026-11-22 — In-app previews and sync timestamp reliability
-- Saved website links now open in Memory's in-app preview, with an explicit external-browser option. Sites that block embedded viewing may still require opening externally.
-- HTML and HTM attachments now open in a sandboxed in-app iframe; scripts cannot access the parent Memory page or its origin.
-- Added in-app previews for common text formats and native audio/video playback where the browser supports them. Existing PDF and image previews remain.
-- New notes and changed notes now receive an explicit update timestamp before persistence and cloud upload, improving cross-device conflict detection for changes such as newly added links.
-- Bumped the PWA shell cache to v13 so installed devices fetch the updated app.
+## 2026-11-22 10:23 UTC — Concurrent-write protection
+
+- Added compare-and-swap updates so an existing cloud note is updated only when its server version still matches the version fetched at sync start.
+- Preserved simultaneous note edits as conflict copies rather than silently overwriting a competing change.
+- Added duplicate-ID handling for concurrent inserts.
+- Debounced bursts of Realtime notifications while retaining the fallback refresh.
+
+## 2026-11-22 14:32 UTC — Note HTML sanitization
+
+- Bundled DOMPurify locally so sanitization is available without a network dependency.
+- Added a central note HTML sanitizer and applied it at editor, local-load, cloud-sync, paste, merge, and save boundaries.
+- Added a browser security harness for malicious note HTML cases.
+- Added the sanitizer's license notices and precached its local files in the app shell.
+
+## 2026-11-22 14:34 UTC — Service-worker cache allowlist
+
+- Restricted runtime caching to four exact, explicitly configured CDN asset URLs.
+- Made Supabase API and Storage requests network-only.
+- Made all other non-allowlisted external requests bypass Cache Storage.
+- Prevented unsuccessful navigation responses from replacing the cached offline app shell.
+- Bumped the service-worker cache version to v19.
+
+## 2026-11-22 14:44 UTC — Server-authoritative sync versions
+
+- Added a Supabase migration that assigns server-generated `updated_at` values to notes, folders, and labels.
+- Replaced device-clock-based conflict ordering with server-version checks and pending local-change tracking.
+- Preserved concurrent note edits as conflict copies and merged server timestamps back into the local cache.
+- Updated account reset-marker handling to use server-generated versions.
+- Bumped the PWA shell cache to v20.
+
+## Verification notes
+
+- JavaScript syntax and selected static checks have been run during development.
+- Browser security harness tests and real-device acceptance tests remain separate verification steps; a passing syntax check is not evidence that those browser scenarios have passed.
+- The app remains a prototype and should not be described as production-ready until authentication, sync, conflict handling, offline behaviour, attachment transfers, account reset, and recovery have passed real-browser testing.
