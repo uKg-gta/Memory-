@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
 test('cloud sync is manual after the initial signed-in sync', () => {
   assert.doesNotMatch(html, /queueCloudSync\s*\(/);
