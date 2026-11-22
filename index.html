@@ -558,7 +558,7 @@
           ]);
           const resetMarker=remoteLabels.find(x=>x.client_id===RESET_MARKER_CLIENT_ID&&!x.deleted_at);
           if(resetMarker&&resetMarker.name==='RESET_PENDING') throw new Error('An account reset is in progress on another device. Please sync again shortly.');
-          if(resetMarker&&Date.parse(resetMarker.updated_at||0)>Date.parse((state.syncMeta&&state.syncMeta.accountResetAt)||0)){
+          if(resetMarker&&Date.parse(resetMarker.updated_at||0)!==Date.parse((state.syncMeta&&state.syncMeta.accountResetAt)||0)){
             const retainedTheme=state.theme==='dark'?'dark':'light';
             state=normalizeState({...getDefaultData(),theme:retainedTheme,syncMeta:{accountResetAt:resetMarker.updated_at}});
             editingNoteId=null;editorDraft=null;clearTimeout(autoSaveTimer);
@@ -1533,8 +1533,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           while (syncInProgress) await new Promise(resolve => setTimeout(resolve, 50));
           if (!authUser || authUser.id !== userId) throw new Error('The signed-in account changed. No reset was performed.');
 
-          const resetAt = new Date().toISOString();
-          const pendingMarker = await supabaseClient.from('labels').upsert({user_id:userId,client_id:RESET_MARKER_CLIENT_ID,name:'RESET_PENDING',colour:'olive',updated_at:resetAt,deleted_at:null},{onConflict:'user_id,client_id'});
+          const pendingMarker = await supabaseClient.from('labels').upsert({user_id:userId,client_id:RESET_MARKER_CLIENT_ID,name:'RESET_PENDING',colour:'olive',deleted_at:null},{onConflict:'user_id,client_id'});
           if (pendingMarker.error) throw pendingMarker.error;
 
           const storagePaths = await listAccountStoragePaths(userId);
@@ -1549,8 +1548,9 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           }
           const deleteLabels = await supabaseClient.from('labels').delete().eq('user_id', userId).neq('client_id', RESET_MARKER_CLIENT_ID);
           if (deleteLabels.error) throw deleteLabels.error;
-          const completeMarker = await supabaseClient.from('labels').upsert({user_id:userId,client_id:RESET_MARKER_CLIENT_ID,name:'RESET_COMPLETE',colour:'olive',updated_at:resetAt,deleted_at:null},{onConflict:'user_id,client_id'});
+          const completeMarker = await supabaseClient.from('labels').upsert({user_id:userId,client_id:RESET_MARKER_CLIENT_ID,name:'RESET_COMPLETE',colour:'olive',deleted_at:null},{onConflict:'user_id,client_id'}).select('updated_at').single();
           if (completeMarker.error) throw completeMarker.error;
+          const resetAt = completeMarker.data.updated_at;
 
           const retainedTheme = state.theme === 'dark' ? 'dark' : 'light';
           await deleteDatabaseState(activeStorageKey);
