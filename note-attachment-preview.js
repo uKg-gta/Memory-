@@ -7,6 +7,8 @@
   const MAX_TEXT_BYTES = 2 * 1024 * 1024;
   const TEXT_EXTENSIONS = new Set(['txt','md','markdown','csv','tsv','json','xml','yaml','yml','toml','ini','log','js','mjs','cjs','ts','tsx','jsx','css','scss','html','htm','svg','sql','py','java','c','h','cpp','cs','go','rs','sh','bat','ps1','php','rb','swift','kt','dart','ipynb','rtf']);
   const IMAGE_TYPES = new Set(['image/png','image/jpeg','image/gif','image/webp','image/avif','image/bmp','image/x-icon','image/vnd.microsoft.icon']);
+  const AUDIO_EXTENSIONS = new Set(['mp3','wav','ogg','oga','m4a','aac','flac','opus','aiff','mid','midi']);
+  const VIDEO_EXTENSIONS = new Set(['mp4','webm','mov','m4v','mkv','avi','mpeg','mpg','3gp','ogv']);
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -38,7 +40,7 @@
   }
   function addMetadata(container, file, mime, kind) {
     const grid = el('dl', 'grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs');
-    [['File name',file.name],['Format',kind],['MIME type',mime || 'Not declared'],['File size',prettyBytes(file.size)],['Last modified',file.lastModified ? new Date(file.lastModified).toLocaleString() : 'Not available']].forEach(([k,v]) => {
+    [['File name',file.name || 'Attachment'],['Format',kind],['MIME type',mime || 'Not declared'],['File size',prettyBytes(file.size)],['Last modified',file.lastModified ? new Date(file.lastModified).toLocaleString() : 'Not available']].forEach(([k,v]) => {
       const item = el('div','rounded-lg border border-muted bg-main p-2');
       item.append(el('dt','text-muted',k),el('dd','mt-1 break-all text-main font-medium',String(v)));
       grid.append(item);
@@ -170,11 +172,11 @@
       const img=el('img','max-w-full max-h-full object-contain p-3'); img.alt=name; img.src=safeUrl; container.replaceChildren(img);
       img.addEventListener('load',()=>URL.revokeObjectURL(safeUrl),{once:true}); return;
     }
-    if (kind==='Audio' || mime.startsWith('audio/')) {
+    if (kind==='Audio' || mime.startsWith('audio/') || AUDIO_EXTENSIONS.has(ext)) {
       const wrap=panel(container,'Audio preview','Playback uses the browser media decoder.');
       const player=el('audio','w-full max-w-xl'); player.controls=true; player.preload='metadata'; player.src=objectUrl; wrap.append(player); return;
     }
-    if (kind==='Video' || mime.startsWith('video/')) {
+    if (kind==='Video' || mime.startsWith('video/') || VIDEO_EXTENSIONS.has(ext)) {
       const wrap=panel(container,'Video preview','Playback uses the browser media decoder.');
       const player=el('video','max-w-full max-h-full'); player.controls=true; player.playsInline=true; player.preload='metadata'; player.src=objectUrl; wrap.append(player); return;
     }
