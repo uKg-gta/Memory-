@@ -84,6 +84,7 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Extended the account-scoped Supabase Realtime channel to listen for changes in notes, folders, and labels.
 - Routed all events through the existing authoritative cloud sync rather than trusting partial event payloads.
 - Added stale-callback protection and channel cleanup on account switching and sign-out.
+- Waited for an in-flight account sync to finish before switching the active local workspace, preventing late writes from crossing account boundaries.
 - Added connection status to account settings and retained the periodic visible-tab refresh as a fallback.
 - Added automated tests for subscription filters, event routing, account changes, stale callbacks, and cleanup.
 
