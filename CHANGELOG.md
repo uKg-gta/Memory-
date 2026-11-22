@@ -1,3 +1,10 @@
+# Realtime cross-device note updates
+
+- Added account-scoped Supabase Realtime subscriptions for note-row changes so open devices start syncing immediately instead of waiting for the 30-second polling interval.
+- Reduced the local cloud-sync debounce and ensured sync requests arriving during an active sync are queued for a follow-up pass.
+- Enabled the Memory `notes` table in the `supabase_realtime` publication.
+- Bumped the PWA shell cache to v16.
+
 ## 2026-11-22 — Account reset
 - Added a Settings reset action for the currently signed-in Google account.
 - Requires typing RESET; permanently removes that account's cloud notes, folders, labels, relationships, attachment metadata and Storage files, then clears its local workspace and pending sync state.
