@@ -24,4 +24,4 @@ jobs:
       - name: Install cross-browser engines
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Run service-worker and browser security tests
-        run: node --test tests/service-worker.test.cjs tests/security-browser.test.cjs tests/responsive-browser.test.cjs tests/sync-core.test.cjs tests/storage-browser.test.cjs tests/state-core.test.cjs tests/auth-core.test.cjs tests/editor-core.test.cjs tests/realtime-core.test.cjs tests/database-migrations.test.cjs
+        run: node --test tests/service-worker.test.cjs tests/security-browser.test.cjs tests/responsive-browser.test.cjs tests/sync-core.test.cjs tests/storage-browser.test.cjs tests/state-core.test.cjs tests/auth-core.test.cjs tests/editor-core.test.cjs tests/realtime-core.test.cjs tests/attachment-policy.test.cjs tests/database-migrations.test.cjs
