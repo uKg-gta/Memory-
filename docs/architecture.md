@@ -4,17 +4,13 @@
 
 The current reference is a standalone HTML/CSS/JavaScript prototype. The app shell is served as a static web app and should be hosted on localhost or HTTPS for service-worker and PWA capabilities.
 
-## Local data
+## Cloud source of truth and offline reading
 
-IndexedDB is the intended local persistence layer for:
-- Notes and editor content
-- Attachment blobs and metadata
-- Folders and labels
-- Pin state, note colours, and manual ordering
-- Archive and Trash state
-- User preferences, including theme
+Supabase is the authoritative source for notes, folders, labels, relationships, and attachment files. All data-changing actions require a successful online sync state. While offline, Memory is read-only.
 
-The prototype must be tested in real browsers for transaction safety, quota handling, schema upgrades, and recovery. Browser storage can be cleared by users or evicted under some conditions; users should be encouraged to export backups.
+IndexedDB is a per-account, read-only cache used only to display the last successfully downloaded notes and attachment blobs while offline. It is not an independent source of truth and must never upload offline edits. Cached content is refreshed from Supabase after reconnection. Items and attachments not previously downloaded on a device are unavailable offline.
+
+The browser may retain the Supabase Auth session locally so the signed-in account can be restored; this is separate from note storage. Browser cache data may be cleared or evicted, so offline availability is best-effort.
 
 ## Attachments and backups
 
