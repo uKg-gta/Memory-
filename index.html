@@ -18,6 +18,7 @@
   <script src="./note-state-core.js"></script>
   <script src="./note-auth-core.js"></script>
   <script src="./note-editor-core.js"></script>
+  <script src="./note-attachment-policy.js"></script>
   <script src="./note-realtime-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -649,6 +650,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
               const existing=attachmentMap.get(att.id);
               const blob=att.blob||att.fileBlob;
               if(blob instanceof Blob&&(!existing||existing.deleted_at)){
+                const validation=MemoryAttachmentPolicy.validateFile(blob);if(!validation.valid)throw new Error('Attachment “'+(att.name||att.fileName||'file')+'” exceeds the '+MemoryAttachmentPolicy.MAX_FILE_LABEL+' per-file limit or has an invalid size.');
                 const up=await supabaseClient.storage.from('memory-attachments').upload(path,blob,{upsert:true,contentType:att.mimeType||blob.type||'application/octet-stream'});
                 if(up.error)throw up.error;
                 const meta=await supabaseClient.from('attachments').upsert({user_id:userId,note_id:nr.id,client_id:att.id,storage_path:path,file_name:att.name||att.fileName||'Attachment',mime_type:att.mimeType||blob.type||'application/octet-stream',size_bytes:blob.size,deleted_at:null},{onConflict:'user_id,client_id'});if(meta.error)throw meta.error;
@@ -2633,15 +2635,26 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       document.getElementById('attachment-file-input').addEventListener('change', e => {
         const files = Array.from(e.target.files || []);
         if (!files.length || !editorDraft) return;
+        const accepted = [];
+        let rejectedCount = 0;
+        for (const file of files) {
+          const validation = MemoryAttachmentPolicy.validateFile(file);
+          if (!validation.valid) rejectedCount++;
+          else accepted.push(file);
+        }
+        if (rejectedCount) {
+          showToast(rejectedCount + ' file(s) exceed the ' + MemoryAttachmentPolicy.MAX_FILE_LABEL + ' per-file limit and were not attached.');
+        }
+        e.target.value = '';
+        if (!accepted.length) return;
         editorDraft.attachments = editorDraft.attachments || [];
-        files.forEach(file => {
+        accepted.forEach(file => {
           const ext = (file.name.split('.').pop() || 'FILE').toUpperCase();
           editorDraft.attachments.push({
             id: uid('a'), name: file.name, type: ext, size: formatFileSize(file.size),
             sizeBytes: file.size, mimeType: file.type || 'application/octet-stream', blob: file
           });
         });
-        e.target.value = '';
         renderEditorAttachments();
         scheduleAutoSave();
       });
