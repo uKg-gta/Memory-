@@ -1,5 +1,5 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v21';
+const VERSION = 'memory-pwa-v22';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
@@ -11,17 +11,16 @@ const SHELL_FILES = [
   './vendor/purify.min.js',
   './note-sanitizer.js'
 ];
+const SHELL_ASSETS = new Set(SHELL_FILES.map(path => new URL(path, self.registration.scope).href));
 
 // Only these exact third-party URLs may enter Cache Storage.
-// Keep URL strings synchronized with the script/style URLs used by the app.
 const EXTERNAL_ASSETS = new Set([
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
   'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'
 ]);
 
-// Supabase API and Storage traffic must never be cached, even if the
-// external-asset allowlist is changed later.
+// Supabase API and Storage traffic must never be cached.
 const SUPABASE_ORIGIN = 'https://ncqypupxbywojcvwfgvg.supabase.co';
 
 self.addEventListener('install', event => {
@@ -67,27 +66,22 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
 
   // External requests are network-only unless their exact URL is allowlisted.
-  // Supabase API/Storage requests are always network-only and never cached.
+  // The entire Supabase origin is always network-only, including API and Storage.
   if (url.origin !== self.location.origin) {
-    if (url.origin === SUPABASE_ORIGIN) {
-      event.respondWith(fetch(request));
-      return;
-    }
-
-    if (!EXTERNAL_ASSETS.has(url.href)) {
+    if (url.origin === SUPABASE_ORIGIN || !EXTERNAL_ASSETS.has(url.href)) {
       event.respondWith(fetch(request));
       return;
     }
 
     event.respondWith((async () => {
       const cache = await caches.open(RUNTIME_CACHE);
-      const cached = await cache.match(request);
+      const cached = await cache.match(url.href);
       if (cached) return cached;
 
       try {
         const response = await fetch(request);
         if (response && (response.ok || response.type === 'opaque')) {
-          await cache.put(request, response.clone());
+          await cache.put(url.href, response.clone());
         }
         return response;
       } catch (error) {
@@ -97,14 +91,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // App navigation is network-first, with the cached app shell as offline fallback.
+  // Navigations are network-first. Never replace the known-good app shell with
+  // a route-specific response; use the install-time shell only when offline.
   if (request.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        const response = await fetch(request);
-        const cache = await caches.open(SHELL_CACHE);
-        if (response && response.ok) await cache.put('./index.html', response.clone());
-        return response;
+        return await fetch(request);
       } catch (error) {
         const cache = await caches.open(SHELL_CACHE);
         return (await cache.match('./index.html')) || Response.error();
@@ -113,15 +105,21 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Same-origin app assets use the shell cache; external URLs never reach this path.
+  // Cache only the exact same-origin shell assets. All other same-origin
+  // requests (including future APIs and dynamic endpoints) remain network-only.
+  if (!SHELL_ASSETS.has(url.href)) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   event.respondWith((async () => {
     const cache = await caches.open(SHELL_CACHE);
-    const cached = await cache.match(request);
+    const cached = await cache.match(url.href);
     if (cached) return cached;
 
     try {
       const response = await fetch(request);
-      if (response && response.ok) await cache.put(request, response.clone());
+      if (response && response.ok) await cache.put(url.href, response.clone());
       return response;
     } catch (error) {
       return cached || Response.error();
