@@ -26,13 +26,14 @@ test('application and service worker both load and enforce the shared policy', (
   const path = require('node:path');
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const appSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 
   assert.match(html, /<script src="\.\/note-attachment-policy\.js"><\/script>/);
   assert.doesNotMatch(html, /note-attachment-preview\.js/);
-  assert.match(html, /MemoryAttachmentPolicy\.validateFile\(file\)/);
-  assert.match(html, /MemoryAttachmentPolicy\.validateFile\(blob\)/);
-  assert.match(serviceWorker, /memory-pwa-v34/);
+  assert.match(appSource, /MemoryAttachmentPolicy\.validateFile\(file\)/);
+  assert.match(appSource, /MemoryAttachmentPolicy\.validateFile\(blob\)/);
+  assert.match(serviceWorker, /memory-pwa-v35/);
   assert.match(serviceWorker, /\.\/note-attachment-policy\.js/);
   assert.doesNotMatch(serviceWorker, /note-attachment-preview\.js/);
 });
