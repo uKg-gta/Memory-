@@ -649,6 +649,18 @@
       }
       async function syncCloudNotes(){
         if(!authUser||!supabaseClient||!syncReady||!navigator.onLine||syncInProgress)return;
+        const previousSyncStatus = syncStatus;
+        const previousSyncError = syncError;
+        syncStartedWritable = hasSuccessfulSync && syncStatus === 'synced';
+        syncRequested = false;
+        syncInProgress = true;
+        syncStatus = 'syncing';
+        syncError = '';
+        cloudChangesAvailable = false;
+        updateSyncButton();
+        applyReadOnlyMode();
+        if (currentView === 'settings') renderMain();
+
         const editorDrafts = new Map();
         activeSyncEditorDrafts = editorDrafts;
         if (!document.getElementById('editor-overlay').classList.contains('hidden') && editorDraft) {
@@ -658,13 +670,21 @@
           if (!isDraftEmpty()) {
             const index = state.notes.findIndex(note => note.id === beforePersist.id);
             if (index >= 0) state.notes[index] = cloneData(beforePersist); else state.notes.push(cloneData(beforePersist));
-            if (!await saveState()) { activeSyncEditorDrafts = null; showToast('The open note could not be saved locally. Sync was not started.'); return; }
+            if (!await saveState()) {
+              activeSyncEditorDrafts = null;
+              syncInProgress = false;
+              syncStartedWritable = false;
+              syncStatus = previousSyncStatus;
+              syncError = previousSyncError;
+              updateSyncButton();
+              applyReadOnlyMode();
+              if (currentView === 'settings') renderMain();
+              showToast('The open note could not be saved locally. Sync was not started.');
+              return;
+            }
           }
           editorDrafts.set(beforePersist.id, { baseline: cloneData(beforePersist), current: cloneData(beforePersist), dirtyAtStart: dirtyAtStart && isDraftEmpty(), open: true });
         }
-        syncStartedWritable = hasSuccessfulSync && syncStatus === 'synced';
-        syncRequested=false; syncInProgress=true; syncStatus='syncing'; syncError=''; cloudChangesAvailable=false;
-        updateSyncButton(); applyReadOnlyMode(); if(currentView==='settings')renderMain();
         const syncConflictIds = new Set();
         try{
           const userId=authUser.id;
