@@ -798,7 +798,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           const localLabelIds=new Set(state.labels.map(x=>x.id));
           for(const r of freshLabels){if(r.client_id&&!r.deleted_at&&!localLabelIds.has(r.client_id))state.labels.push({id:r.client_id,name:r.name,colour:r.colour||'olive',updatedAt:r.updated_at});}
           await saveState();suppressDeleteDetection=false;syncStatus='synced';hasSuccessfulSync=true;applyReadOnlyMode();updateSyncButton();
-        }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';showToast('Sync failed. Your local notes are retained. Tap Sync to retry.');}
+        }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';applyReadOnlyMode();updateSyncButton();showToast('Sync failed. Your local notes are retained. Tap Sync to retry.');}
         finally{
           try { await reconcileEditorDraftsAfterSync(editorDrafts, syncConflictIds); }
           catch (draftError) { console.error('Could not reconcile the open editor after sync:', draftError); showToast('Your open note could not be reconciled automatically. Keep it open and try Sync again.'); }
