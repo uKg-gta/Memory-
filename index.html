@@ -15,6 +15,7 @@
   <script src="./note-sanitizer.js"></script>
   <script src="./note-sync-core.js"></script>
   <script src="./note-storage.js"></script>
+  <script src="./note-state-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -768,9 +769,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         { id: 'grey', label: 'Grey', swatch: '#92958F', light: '#E9EAE7', dark: '#41443F' }
       ];
 
-      function getDefaultData() {
-        return { theme: 'light', folders: [], labels: [], notes: [] };
-      }
+      function getDefaultData() { return MemoryNoteState.getDefaultData(); }
 
       // IndexedDB is the primary local database. A one-time legacy localStorage
       // migration keeps data from the earlier prototype available.
@@ -780,32 +779,9 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
 
 
 
-      function cloneData(value) {
-        if (typeof structuredClone === 'function') return structuredClone(value);
-        // Older-browser fallback. Blob attachments require structuredClone support.
-        return JSON.parse(JSON.stringify(value));
-      }
+      function cloneData(value) { return MemoryNoteState.cloneData(value); }
 
-      function normalizeState(data) {
-        data.theme = data.theme === 'dark' ? 'dark' : 'light';
-        data.folders = Array.isArray(data.folders) ? data.folders : [];
-        data.folders.forEach(x=>{if(!x.updatedAt)x.updatedAt='1970-01-01T00:00:00.000Z';});
-        data.labels = Array.isArray(data.labels) ? data.labels : [];
-        data.labels.forEach(label => { if (!label.colour) label.colour = 'olive'; if(!label.updatedAt)label.updatedAt='1970-01-01T00:00:00.000Z'; });
-        data.notes = Array.isArray(data.notes) ? data.notes : [];
-        data.syncMeta=data.syncMeta||{};for(const key of ['pendingNoteIds','pendingFolderIds','pendingLabelIds'])data.syncMeta[key]=Array.isArray(data.syncMeta[key])?data.syncMeta[key]:[];
-        data.notes.forEach(note => {
-          note.bodyHtml = sanitizeNoteHtml(note.bodyHtml || '');
-          note.folderId = note.folderId || '';
-          note.labelIds = Array.isArray(note.labelIds) ? note.labelIds : [];
-          note.attachments = Array.isArray(note.attachments) ? note.attachments : [];
-          note.links = Array.isArray(note.links) ? note.links : [];
-          note.checklist = Array.isArray(note.checklist) ? note.checklist : [];
-          if (!note.createdAt) note.createdAt = Date.now();
-          if (!note.updatedAt) note.updatedAt = new Date(note.createdAt).toISOString();
-        });
-        return data;
-      }
+      function normalizeState(data) { return MemoryNoteState.normalizeState(data, sanitizeNoteHtml); }
 
       async function readDatabaseState(key = 'primary') {
         return noteStorage.read(key);
