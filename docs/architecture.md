@@ -2,50 +2,72 @@
 
 ## Current delivery model
 
-The current reference is a standalone HTML/CSS/JavaScript prototype. The app shell is served as a static web app and should be hosted on localhost or HTTPS for service-worker and PWA capabilities.
+The current reference is a standalone HTML/CSS/JavaScript application. The app shell is served as a static web app and should be hosted on localhost or HTTPS for service-worker and PWA capabilities.
 
-## Cloud source of truth and offline reading
+Google sign-in through Supabase Auth is required before account notes are displayed. The browser uses the Supabase publishable key only; a service-role or secret key must never be shipped to the client.
 
-Supabase is the authoritative source for notes, folders, labels, relationships, and attachment files. All data-changing actions require a successful online sync state. While offline, Memory is read-only.
+## Data authority and offline behaviour
 
-IndexedDB is a per-account, read-only cache used only to display the last successfully downloaded notes and attachment blobs while offline. It is not an independent source of truth and must never upload offline edits. Cached content is refreshed from Supabase after reconnection. Items and attachments not previously downloaded on a device are unavailable offline.
+**Supabase is the single source of truth** for account notes, folders, labels, note-label relationships, attachment metadata, and attachment binaries.
 
-The browser may retain the Supabase Auth session locally so the signed-in account can be restored; this is separate from note storage. Browser cache data may be cleared or evicted, so offline availability is best-effort.
+IndexedDB is a **per-account local cache**, not an independent source of truth. It holds data already downloaded to the current device so the user can read that content when offline. Offline use is read-only: creating, editing, deleting, and reorganising cloud data require a connection and a completed successful sync. The app also remains read-only while initial sync is running or when sync is in an error state.
+
+On reconnection, the app refreshes from Supabase before enabling edits. Content that was never downloaded to a device is not available offline. Browser storage can be cleared or evicted, so offline availability is best-effort rather than guaranteed.
+
+The Supabase Auth session may be persisted locally by the Supabase client to restore sign-in. That session storage is distinct from the cached note data.
+
+## Account isolation
+
+- Every account's local cache is keyed by its authenticated Supabase user ID.
+- Switching accounts must not expose one account's cached notes to another account or upload one account's data into another account.
+- Database tables use ownership-based row-level security.
+- The attachment bucket is private; authenticated access and per-user object paths are required.
+- The account reset flow deletes that account's cloud data and local cache. A server-side reset marker prevents an old offline cache on another device from being re-uploaded after reset; that device clears its stale copy on its next successful sync.
+
+## Sync and conflict handling
+
+- Stable client IDs map application records to database UUIDs.
+- Sync includes notes, folders, labels, note-label relationships, attachment metadata, and attachment bytes in the private `memory-attachments` bucket.
+- Reads are paginated.
+- Deletions use tombstones so they propagate across devices.
+- Notes, folders, and labels receive server-authoritative `updated_at` values through database triggers. Client device clocks are not used as the authority for version ordering.
+- Local pending-change markers and compare-and-swap updates detect a cloud record that changed after the device fetched it. Concurrent note edits are preserved as conflict copies rather than silently overwriting one another.
+- Supabase Realtime currently subscribes to note-row changes. Folder and label changes are discovered through the periodic refresh fallback; they are not yet covered by dedicated Realtime subscriptions.
+- Realtime notifications are a prompt to refresh, not the source of truth. The client must fetch current records from Supabase.
+
+Real browser testing is still required for simultaneous edits, auth expiry, OAuth redirects, storage upload/download, quota failures, reset propagation, and cross-device consistency. Do not claim production readiness until those tests pass.
 
 ## Attachments and backups
 
-Attachment records should retain actual Blob/File data. A full export must include binary attachment data (for example, base64-encoded in a JSON backup or a more efficient archive format). Restore must validate the backup format and handle duplicate IDs safely.
+Attachment metadata and binary content are synchronised separately. IndexedDB retains local Blob copies for files already downloaded; Supabase Storage is authoritative for attachment files. Private attachment downloads must not be placed in the service-worker runtime cache.
 
-## PWA and offline
+Backup and restore behaviour must be tested against the current account model. A complete backup should include notes, attachments, folders, labels, archive/trash state, and preferences. Restore must validate input and handle duplicate IDs safely; do not describe backup/restore as verified until browser acceptance tests confirm it.
 
-Required files:
+## PWA and caching
+
+Required app-shell files include:
+
 - `index.html`
 - `manifest.webmanifest`
 - `sw.js`
 - `icon-192.png`
 - `icon-512.png`
+- `vendor/purify.min.js`
+- `note-sanitizer.js`
 
-PWA installation and service workers require localhost or HTTPS. Offline testing must include first-load caching, reload while offline, navigation fallback, and updates after a new deployment. External CDNs and remote fonts may not be available offline unless deliberately cached or replaced with local assets.
+PWA installation and service workers require localhost or HTTPS. The service worker preserves an offline app shell and may cache only the exact external CDN URLs explicitly listed in its allowlist. Supabase API requests, Supabase Storage downloads/uploads, and all other non-allowlisted external requests must bypass Cache Storage.
+
+Navigation responses replace the cached app shell only when the network response is successful. Offline testing should include first-load caching, reload while offline, navigation fallback, and updates after a new deployment.
 
 ## External link metadata
 
-Browser-side metadata fetching can fail when a target site does not allow cross-origin requests. The URL must be saved immediately regardless. Metadata retrieval should fail gracefully and retry when connectivity returns. Do not promise that every website title can be fetched automatically.
-
-## Account and cloud sync
-
-- Supabase Auth provides Google sign-in and session restoration. The browser uses the publishable key only; never ship a service-role or secret key.
-- Use only the dedicated Memory Supabase project; never alter LifeOS resources.
-- IndexedDB remains the local offline store. Local workspaces are keyed by account ID so signing into another account on the same browser does not silently expose or upload the previous account's notes.
-- Cloud records use stable client IDs to map the app's local string IDs to database UUID primary keys.
-- Sync includes notes, folders, labels, note-label relationships, attachment metadata, and attachment bytes in the private `memory-attachments` bucket.
-- Reads are paginated. Local/cloud records merge by update timestamp; permanent deletions propagate with tombstones. Online/focus/visibility events retry pending sync.
-- Attachments remain in IndexedDB locally and are uploaded/downloaded through authenticated Storage operations.
-- Real browser testing is still required for concurrent edits, quota failures, auth expiry, OAuth redirects, storage upload/download, restore and cross-device consistency. Do not claim production readiness until those tests pass.
+Browser-side metadata fetching can fail when a target site does not allow cross-origin requests. The URL must be saved immediately regardless. Metadata retrieval should fail gracefully. Do not promise that every website title can be fetched automatically.
 
 ## Security and privacy
 
 - Never commit personal note data or exported backups.
 - Never commit API keys or service-role credentials.
 - Keep environment files ignored.
-- Validate imported backup data before writing to IndexedDB.
-- Treat all note content and imported files as untrusted user data.
+- Validate imported backup data before writing it to local storage.
+- Treat note content and imported files as untrusted data; sanitize note HTML at the editor and sync boundaries.
+- Keep HTML attachment previews sandboxed so embedded content cannot access the parent application.
