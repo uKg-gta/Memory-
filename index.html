@@ -526,8 +526,14 @@
           for(const l of state.labels){const r=labelMap.get(l.id);const payload={user_id:userId,client_id:l.id,name:l.name,colour:l.colour||'olive',updated_at:l.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsLabels.push(payload);}
           if(uploadsFolders.length){const q=await supabaseClient.from('folders').upsert(uploadsFolders,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
           if(uploadsLabels.length){const q=await supabaseClient.from('labels').upsert(uploadsLabels,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
+          const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],deletedLabels=(state.syncMeta&&state.syncMeta.deletedLabelIds)||[];
+          const tombTime=new Date().toISOString();
+          if(deletedFolders.length){const q=await supabaseClient.from('folders').update({deleted_at:tombTime,updated_at:tombTime}).eq('user_id',userId).in('client_id',deletedFolders);if(q.error)throw q.error;}
+          if(deletedLabels.length){const q=await supabaseClient.from('labels').update({deleted_at:tombTime,updated_at:tombTime}).eq('user_id',userId).in('client_id',deletedLabels);if(q.error)throw q.error;}
           const freshFolders=await fetchAllRows('folders','id,user_id,client_id,name,created_at,updated_at,deleted_at',userId);
           const freshLabels=await fetchAllRows('labels','id,user_id,client_id,name,colour,created_at,updated_at,deleted_at',userId);
+          for(const rf of freshFolders){const local=state.folders.find(x=>x.id===rf.client_id);if(rf.deleted_at&&local){state.folders=state.folders.filter(x=>x.id!==rf.client_id);state.notes.forEach(n=>{if(n.folderId===rf.client_id)n.folderId='';});}else if(local&&Date.parse(rf.updated_at||0)>Date.parse(local.updatedAt||0)){local.name=rf.name;local.updatedAt=rf.updated_at;}}
+          for(const rl of freshLabels){const local=state.labels.find(x=>x.id===rl.client_id);if(rl.deleted_at&&local){state.labels=state.labels.filter(x=>x.id!==rl.client_id);state.notes.forEach(n=>{n.labelIds=(n.labelIds||[]).filter(id=>id!==rl.client_id);});}else if(local&&Date.parse(rl.updated_at||0)>Date.parse(local.updatedAt||0)){local.name=rl.name;local.colour=rl.colour||'olive';local.updatedAt=rl.updated_at;}}
           const folderByClient=new Map(freshFolders.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
           const labelByClient=new Map(freshLabels.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
           const folderByUuid=new Map(freshFolders.map(x=>[x.id,x]));
@@ -553,6 +559,10 @@
           // Persist label relationships using stable local IDs alongside the database UUID foreign keys.
           const relationRows=[];
           for(const n of merged){const nr=noteByClient.get(n.id);if(!nr)continue;for(const lid of (n.labelIds||[])){const lr=labelByClient.get(lid);if(lr)relationRows.push({user_id:userId,note_id:nr.id,label_id:lr.id,note_client_id:n.id,label_client_id:lid});}}
+          const desiredRelations=new Set(relationRows.map(x=>x.note_client_id+'|'+x.label_client_id));
+          const existingRelations=await supabaseClient.from('note_labels').select('note_id,label_id,note_client_id,label_client_id').eq('user_id',userId);
+          if(existingRelations.error)throw existingRelations.error;
+          for(const oldRel of (existingRelations.data||[])){const nkey=oldRel.note_client_id||freshNotes.find(n=>n.id===oldRel.note_id)?.client_id;const lkey=oldRel.label_client_id||freshLabels.find(l=>l.id===oldRel.label_id)?.client_id;if(nkey&&lkey&&!desiredRelations.has(nkey+'|'+lkey)){const del=await supabaseClient.from('note_labels').delete().eq('user_id',userId).eq('note_id',oldRel.note_id).eq('label_id',oldRel.label_id);if(del.error)throw del.error;}}
           if(relationRows.length){const q=await supabaseClient.from('note_labels').upsert(relationRows,{onConflict:'note_id,label_id'});if(q.error)throw q.error;}
           // Bring cloud label links onto notes without replacing local-only links until remote records are available.
           const rel=await supabaseClient.from('note_labels').select('note_id,label_id,note_client_id,label_client_id').eq('user_id',userId);
@@ -561,6 +571,8 @@
           for(const n of merged){const cloudLabels=relByNote.get(n.id);if(cloudLabels)n.labelIds=Array.from(new Set([...(n.labelIds||[]),...cloudLabels]));}
           // Attachment metadata and binary files. Local Blobs remain in IndexedDB; remote files download when absent locally.
           const remoteAttachments=await fetchAllRows('attachments','id,user_id,note_id,client_id,storage_path,file_name,mime_type,size_bytes,created_at,deleted_at',userId);
+          const deletedAttachments=(state.syncMeta&&state.syncMeta.deletedAttachmentIds)||[];
+          for(const gone of deletedAttachments){const ra=remoteAttachments.find(a=>a.client_id===gone.attachmentId);if(ra&&!ra.deleted_at){const rm=await supabaseClient.storage.from('memory-attachments').remove([ra.storage_path]);if(rm.error)throw rm.error;const dm=await supabaseClient.from('attachments').update({deleted_at:new Date().toISOString()}).eq('user_id',userId).eq('client_id',gone.attachmentId);if(dm.error)throw dm.error;}}
           const attachmentMap=new Map(remoteAttachments.filter(a=>a.client_id).map(a=>[a.client_id,a]));
           const noteDbMap=new Map(freshNotes.filter(n=>n.client_id&&!n.deleted_at).map(n=>[n.client_id,n]));
           for(const n of merged){
