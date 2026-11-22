@@ -1,5 +1,5 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v28';
+const VERSION = 'memory-pwa-v29';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
@@ -14,7 +14,8 @@ const SHELL_FILES = [
   './note-storage.js',
   './note-state-core.js',
   './note-auth-core.js',
-  './note-editor-core.js'
+  './note-editor-core.js',
+  './note-realtime-core.js'
 ];
 const SHELL_ASSETS = new Set(SHELL_FILES.map(path => new URL(path, self.registration.scope).href));
 
