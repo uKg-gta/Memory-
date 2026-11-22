@@ -35,7 +35,8 @@ function createTestServer() {
           '  setWritable: writable => { authUser = writable ? { id: "test-user" } : null; authReady = true; syncReady = !!writable; syncStatus = writable ? "synced" : "idle"; syncInProgress = false; syncStartedWritable = false; applyReadOnlyMode(); },',
           '  setEditorDraft: attachments => { editorDraft = { id: "test-note", title: "Test note", bodyHtml: "", checklist: [], links: [], attachments: attachments || [], colour: "paper", pinned: false, order: 1, folderId: "", labelIds: [], archived: false, trashed: false, createdAt: Date.now() }; state.notes = [editorDraft]; editingNoteId = editorDraft.id; document.getElementById("editor-title").value = editorDraft.title; document.getElementById("editor-body").textContent = ""; document.getElementById("editor-overlay").classList.remove("hidden"); renderEditorAttachments(); window.__memoryTest.setWritable(false); },',
           '  getAttachment: id => (editorDraft && editorDraft.attachments || []).find(item => item.id === id) || null,',
-          '  closeEditor: () => closeEditor()',
+          '  closeEditor: () => closeEditor(),',
+          '  isReady: () => authReady',
           '};',
           ''
         ].join('\n');
@@ -92,7 +93,7 @@ async function openApp(browser) {
     }, true);
   });
   await page.goto(base + '/', { waitUntil: 'load' });
-  await page.waitForFunction(() => !!window.__memoryTest);
+  await page.waitForFunction(() => !!window.__memoryTest && window.__memoryTest.isReady());
   return { server, context, page };
 }
 
