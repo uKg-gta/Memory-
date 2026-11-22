@@ -94,6 +94,10 @@ async function openApp(browser) {
   });
   await page.goto(base + '/', { waitUntil: 'load' });
   await page.waitForFunction(() => !!window.__memoryTest && window.__memoryTest.isReady());
+  // This harness tests the app UI without a real sign-in; keep the signed-out
+  // gate from covering the preview/menu controls while retaining read-only mode.
+  await page.addStyleTag({ content: '#app { display: flex !important; } #auth-gate { display: none !important; }' });
+  await page.evaluate(() => document.body.classList.remove('auth-locked'));
   return { server, context, page };
 }
 
@@ -290,6 +294,9 @@ test('attachment menu supports positioning, keyboard access, preview, download, 
     await page.locator('#attachment-rename-input').fill('bad\\name.pdf');
     await page.locator('#attachment-rename-save').click();
     assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('cannot contain'));
+    await page.locator('#attachment-rename-input').evaluate(input => { input.value = 'bad' + String.fromCharCode(1) + 'name.pdf'; });
+    await page.locator('#attachment-rename-save').click();
+    assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('control characters'));
     await page.locator('#attachment-rename-input').evaluate(input => { input.value = 'bad' + String.fromCharCode(1) + 'name.pdf'; });
     await page.locator('#attachment-rename-save').click();
     assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('cannot contain'));

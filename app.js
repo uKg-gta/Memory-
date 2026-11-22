@@ -2434,7 +2434,9 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         } else if (classification.kind === 'video-embed') {
           element = document.createElement('iframe');
           element.title = (link && (link.title || link.domain)) || 'Video preview';
-          element.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+          element.setAttribute('sandbox', sameOrigin
+            ? 'allow-scripts allow-popups allow-popups-to-escape-sandbox'
+            : 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
           element.setAttribute('allow', 'fullscreen; picture-in-picture');
           element.setAttribute('allowfullscreen', '');
           element.setAttribute('referrerpolicy', 'no-referrer');
