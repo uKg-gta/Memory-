@@ -541,7 +541,7 @@
       });
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,syncStatus='idle',syncError='',realtimeStatus='connecting',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null,syncIdleResolvers=[];
+      let authUser=null,authReady=false,authTransitionGeneration=0,authTransitionPending=false,syncStatus='idle',syncError='',realtimeStatus='connecting',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null,syncIdleResolvers=[];
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function noteSyncFingerprint(n){return MemorySyncCore.fingerprintNote(n,sanitizeNoteHtml);}
       function queueCloudSync(delay=100,source='local'){if(!authUser||!supabaseClient||!syncReady)return;if(source==='realtime'){clearTimeout(realtimeSyncTimer);realtimeSyncTimer=setTimeout(()=>queueCloudSync(100,'realtime-run'),350);return;}if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
@@ -694,20 +694,26 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         button.textContent = supabaseClient ? 'Continue with Google' : 'Sign-in unavailable';
       }
 
-      async function switchAccountWorkspace(user) {
-        if (!user) return;
+      async function switchAccountWorkspace(user, isCurrent) {
+        const stillCurrent = typeof isCurrent === 'function' ? isCurrent : () => true;
+        if (!user || !stillCurrent()) return false;
         const targetKey = 'account:' + user.id;
-        if (targetKey === activeStorageKey) return;
+        if (targetKey === activeStorageKey) return true;
         await persistenceQueue;
+        if (!stillCurrent()) return false;
         const target = await readDatabaseState(targetKey);
+        if (!stillCurrent()) return false;
         activeStorageKey = targetKey;
         state = normalizeState(target && Array.isArray(target.notes) ? target : getDefaultData());
         state.syncMeta = state.syncMeta || {};
         state.syncMeta.ownerUserId = user.id;
         lastSavedState = cloneData(state);
-        await saveState();
+        const saved = await saveState();
+        if (!saved) throw new Error('Could not persist the selected account workspace.');
+        if (!stillCurrent()) return false;
         applyTheme();
         renderAll();
+        return true;
       }
       async function initializeSupabaseAuth(){
         updateAuthGate();
@@ -731,9 +737,11 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           accountAuth.onAuthStateChange((_event, session) => {
             const nextUser = session ? session.user : null;
             const changed = (authUser && nextUser && authUser.id !== nextUser.id) || (!authUser && nextUser) || (authUser && !nextUser);
+            const transition = changed ? ++authTransitionGeneration : authTransitionGeneration;
             authUser = nextUser;
-            authReady = true;
             if (!nextUser) {
+              authTransitionPending = false;
+              authReady = true;
               syncReady = false; syncStatus = 'idle';
               clearTimeout(syncTimer); clearTimeout(realtimeSyncTimer); syncRequested = false;
               realtimeStatus = 'disconnected';
@@ -741,20 +749,44 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
               updateAuthGate(); return;
             }
             if (changed) {
+              authTransitionPending = true;
+              authReady = false;
               syncReady = false;
               clearTimeout(syncTimer); clearTimeout(realtimeSyncTimer); syncRequested = false;
               realtimeStatus = 'connecting';
               realtimeManager.close();
-              waitForSyncIdle().then(() => switchAccountWorkspace(nextUser)).then(async () => {
-                syncReady = true; await subscribeToAccountChanges(nextUser.id); queueCloudSync(100); updateAuthGate(); renderAll();
+              updateAuthGate();
+              const isCurrentTransition = () => transition === authTransitionGeneration &&
+                authUser && authUser.id === nextUser.id;
+              waitForSyncIdle().then(async () => {
+                if (!isCurrentTransition()) return;
+                const switched = await switchAccountWorkspace(nextUser, isCurrentTransition);
+                if (!switched || !isCurrentTransition()) return;
+                syncReady = true;
+                await subscribeToAccountChanges(nextUser.id);
+                if (!isCurrentTransition()) return;
+                authTransitionPending = false;
+                authReady = true;
+                queueCloudSync(100);
+                updateAuthGate();
+                renderAll();
               }).catch(e => {
+                if (!isCurrentTransition()) return;
                 console.error('Could not switch local account workspace:', e);
-                syncStatus = 'error'; syncError = 'Could not load this account’s local notes'; updateAuthGate();
+                authTransitionPending = false;
+                authReady = true;
+                syncReady = false;
+                syncStatus = 'error';
+                syncError = 'Could not load this account’s local notes';
+                updateAuthGate();
               });
-            } else {
-              syncReady = true; queueCloudSync(100); updateAuthGate();
+            } else if (!authTransitionPending) {
+              authReady = true;
+              syncReady = true;
+              queueCloudSync(100);
+              updateAuthGate();
             }
-            if (currentView === 'settings') renderMain();
+            if (currentView === 'settings' && authReady) renderMain();
           });
         } catch (e) {
           console.error('Supabase auth initialization failed:', e);
@@ -816,8 +848,9 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           showToast('Could not prepare local data for saving');
           return Promise.resolve(false);
         }
+        const storageKey = activeStorageKey;
         persistenceQueue = persistenceQueue.catch(() => {}).then(async () => {
-          await noteStorage.write(activeStorageKey, snapshot);
+          await noteStorage.write(storageKey, snapshot);
           lastSavedState=cloneData(snapshot);if(authUser&&syncReady&&!suppressQueueCloudSync)queueCloudSync();
           return true;
         }).catch(error => {
