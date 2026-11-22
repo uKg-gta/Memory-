@@ -1,3 +1,12 @@
+# 2026-11-22 — Cloud-first editing with offline read-only cache
+
+- Supabase is the authoritative source for notes, folders, labels, relationships and attachment files.
+- IndexedDB remains only as a per-account read-only cache for notes and attachment blobs already downloaded on that device.
+- Creating, editing, deleting and organizing are disabled unless the device is online and cloud sync has completed successfully.
+- Reconnection refreshes the cache from Supabase; offline edits are not queued or uploaded.
+- Fixed a sync loop where the cache save performed by a sync queued another sync indefinitely.
+- Bumped the PWA shell cache to v17.
+
 # Realtime cross-device note updates
 
 - Added account-scoped Supabase Realtime subscriptions for note-row changes so open devices start syncing immediately instead of waiting for the 30-second polling interval.
