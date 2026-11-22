@@ -42,6 +42,8 @@ Real browser testing is still required for simultaneous edits, auth expiry, OAut
 
 Attachment metadata and binary content are synchronised separately. IndexedDB retains local Blob copies for files already downloaded; Supabase Storage is authoritative for attachment files. Private attachment downloads must not be placed in the service-worker runtime cache.
 
+The in-app attachment preview engine (`note-attachment-preview.js`) processes attachment Blobs locally and does not send private file bytes to external viewer services. It provides native image/audio/video rendering, a sandboxed browser PDF viewer, text/source previews, sanitized SVG image rendering, local text extraction for DOCX/XLSX/PPTX, ZIP directory listings, font specimens, and a universal metadata/text/hex inspector for unsupported or opaque formats. Legacy binary Office formats and RAR/7z archives currently receive the inspector fallback rather than full document/archive rendering; 3D model files receive a safe data inspector, not a 3D viewport. Browser codec support still determines whether a particular audio/video file can play. Previewing never executes macros or uploaded scripts and never modifies the original attachment.
+
 Backup and restore behaviour must be tested against the current account model. A complete backup should include notes, attachments, folders, labels, archive/trash state, and preferences. Restore must validate input and handle duplicate IDs safely; do not describe backup/restore as verified until browser acceptance tests confirm it.
 
 ## PWA and caching
@@ -61,6 +63,7 @@ Required app-shell files include:
 - `note-auth-core.js`
 - `note-editor-core.js`
 - `note-attachment-policy.js`
+- `note-attachment-preview.js`
 - `note-realtime-core.js`
 
 PWA installation and service workers require localhost or HTTPS. The service worker preserves an offline app shell and may cache only the exact external CDN URLs explicitly listed in its allowlist. Supabase API requests, Supabase Storage downloads/uploads, and all other non-allowlisted external requests must bypass Cache Storage.
