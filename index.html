@@ -512,6 +512,7 @@
       const supabaseClient = window.supabase && window.supabase.createClient
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
         : null;
+      const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
       let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncTimer=null;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:new Date(n.updatedAt||n.createdAt||Date.now()).toISOString(),deleted_at:null};}
@@ -532,8 +533,15 @@
             fetchAllRows('labels','id,user_id,client_id,name,colour,created_at,updated_at,deleted_at',userId),
             fetchAllRows('notes','id,user_id,client_id,title,body_html,checklist,links,colour,pinned,sort_order,folder_id,archived,trashed,created_at,updated_at,deleted_at',userId)
           ]);
+          const resetMarker=remoteLabels.find(x=>x.client_id===RESET_MARKER_CLIENT_ID&&!x.deleted_at);
+          if(resetMarker&&resetMarker.name==='RESET_PENDING') throw new Error('An account reset is in progress on another device. Please sync again shortly.');
+          if(resetMarker&&Date.parse(resetMarker.updated_at||0)>Date.parse((state.syncMeta&&state.syncMeta.accountResetAt)||0)){
+            const retainedTheme=state.theme==='dark'?'dark':'light';
+            state=normalizeState({...getDefaultData(),theme:retainedTheme,syncMeta:{accountResetAt:resetMarker.updated_at}});
+            lastSavedState=cloneData(state);suppressDeleteDetection=true;await saveState();suppressDeleteDetection=false;
+          }
           const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
-          const labelMap=new Map(remoteLabels.filter(x=>x.client_id).map(x=>[x.client_id,x]));
+          const labelMap=new Map(remoteLabels.filter(x=>x.client_id&&x.client_id!==RESET_MARKER_CLIENT_ID).map(x=>[x.client_id,x]));
           const noteMap=new Map(remoteNotes.filter(x=>x.client_id).map(x=>[x.client_id,x]));
           const uploadsFolders=[],uploadsLabels=[],uploadsNotes=[];
           for(const f of state.folders){const r=folderMap.get(f.id);const payload={user_id:userId,client_id:f.id,name:f.name,updated_at:f.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsFolders.push(payload);}
@@ -545,7 +553,7 @@
           if(deletedFolders.length){const q=await supabaseClient.from('folders').update({deleted_at:tombTime,updated_at:tombTime}).eq('user_id',userId).in('client_id',deletedFolders);if(q.error)throw q.error;}
           if(deletedLabels.length){const q=await supabaseClient.from('labels').update({deleted_at:tombTime,updated_at:tombTime}).eq('user_id',userId).in('client_id',deletedLabels);if(q.error)throw q.error;}
           const freshFolders=await fetchAllRows('folders','id,user_id,client_id,name,created_at,updated_at,deleted_at',userId);
-          const freshLabels=await fetchAllRows('labels','id,user_id,client_id,name,colour,created_at,updated_at,deleted_at',userId);
+          const freshLabels=(await fetchAllRows('labels','id,user_id,client_id,name,colour,created_at,updated_at,deleted_at',userId)).filter(x=>x.client_id!==RESET_MARKER_CLIENT_ID);
           for(const rf of freshFolders){const local=state.folders.find(x=>x.id===rf.client_id);if(rf.deleted_at&&local){state.folders=state.folders.filter(x=>x.id!==rf.client_id);state.notes.forEach(n=>{if(n.folderId===rf.client_id)n.folderId='';});}else if(local&&Date.parse(rf.updated_at||0)>Date.parse(local.updatedAt||0)){local.name=rf.name;local.updatedAt=rf.updated_at;}}
           for(const rl of freshLabels){const local=state.labels.find(x=>x.id===rl.client_id);if(rl.deleted_at&&local){state.labels=state.labels.filter(x=>x.id!==rl.client_id);state.notes.forEach(n=>{n.labelIds=(n.labelIds||[]).filter(id=>id!==rl.client_id);});}else if(local&&Date.parse(rl.updated_at||0)>Date.parse(local.updatedAt||0)){local.name=rl.name;local.colour=rl.colour||'olive';local.updatedAt=rl.updated_at;}}
           const folderByClient=new Map(freshFolders.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
@@ -1459,20 +1467,28 @@
           while (syncInProgress) await new Promise(resolve => setTimeout(resolve, 50));
           if (!authUser || authUser.id !== userId) throw new Error('The signed-in account changed. No reset was performed.');
 
+          const resetAt = new Date().toISOString();
+          const pendingMarker = await supabaseClient.from('labels').upsert({user_id:userId,client_id:RESET_MARKER_CLIENT_ID,name:'RESET_PENDING',colour:'olive',updated_at:resetAt,deleted_at:null},{onConflict:'user_id,client_id'});
+          if (pendingMarker.error) throw pendingMarker.error;
+
           const storagePaths = await listAccountStoragePaths(userId);
           for (let i = 0; i < storagePaths.length; i += 1000) {
             const removed = await supabaseClient.storage.from('memory-attachments').remove(storagePaths.slice(i, i + 1000));
             if (removed.error) throw removed.error;
           }
 
-          for (const table of ['note_labels', 'attachments', 'notes', 'folders', 'labels']) {
+          for (const table of ['note_labels', 'attachments', 'notes', 'folders']) {
             const result = await supabaseClient.from(table).delete().eq('user_id', userId);
             if (result.error) throw result.error;
           }
+          const deleteLabels = await supabaseClient.from('labels').delete().eq('user_id', userId).neq('client_id', RESET_MARKER_CLIENT_ID);
+          if (deleteLabels.error) throw deleteLabels.error;
+          const completeMarker = await supabaseClient.from('labels').upsert({user_id:userId,client_id:RESET_MARKER_CLIENT_ID,name:'RESET_COMPLETE',colour:'olive',updated_at:resetAt,deleted_at:null},{onConflict:'user_id,client_id'});
+          if (completeMarker.error) throw completeMarker.error;
 
           const retainedTheme = state.theme === 'dark' ? 'dark' : 'light';
           await deleteDatabaseState(activeStorageKey);
-          state = normalizeState({ ...getDefaultData(), theme: retainedTheme });
+          state = normalizeState({ ...getDefaultData(), theme: retainedTheme, syncMeta: { accountResetAt: resetAt } });
           lastSavedState = cloneData(state);
           suppressDeleteDetection = true;
           const saved = await saveState();
