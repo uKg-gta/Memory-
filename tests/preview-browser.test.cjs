@@ -33,7 +33,7 @@ function createTestServer() {
           '  openLinkPreview: link => openLinkPreview(link),',
           '  closePreview: () => closeAttachmentPreview(),',
           '  setWritable: writable => { authUser = writable ? { id: "test-user" } : null; authReady = true; syncReady = !!writable; syncStatus = writable ? "synced" : "idle"; syncInProgress = false; syncStartedWritable = false; applyReadOnlyMode(); },',
-          '  setEditorDraft: attachments => { editorDraft = { id: "test-note", title: "Test note", bodyHtml: "", checklist: [], links: [], attachments: attachments || [], colour: "paper", pinned: false, order: 1, folderId: "", labelIds: [], archived: false, trashed: false, createdAt: Date.now() }; state.notes = [editorDraft]; editingNoteId = editorDraft.id; document.getElementById("editor-title").value = editorDraft.title; document.getElementById("editor-body").textContent = ""; document.getElementById("editor-overlay").classList.remove("hidden"); renderEditorAttachments(); window.__memoryTest.setWritable(false); },',
+          '  setEditorDraft: attachments => { document.body.classList.remove("auth-locked"); document.getElementById("auth-gate").classList.add("hidden"); editorDraft = { id: "test-note", title: "Test note", bodyHtml: "", checklist: [], links: [], attachments: attachments || [], colour: "paper", pinned: false, order: 1, folderId: "", labelIds: [], archived: false, trashed: false, createdAt: Date.now() }; state.notes = [editorDraft]; editingNoteId = editorDraft.id; document.getElementById("editor-title").value = editorDraft.title; document.getElementById("editor-body").textContent = ""; document.getElementById("editor-overlay").classList.remove("hidden"); renderEditorAttachments(); window.__memoryTest.setWritable(false); },',
           '  getAttachment: id => (editorDraft && editorDraft.attachments || []).find(item => item.id === id) || null,',
           '  closeEditor: () => closeEditor(),',
           '  isReady: () => authReady',
@@ -288,6 +288,9 @@ test('attachment menu supports positioning, keyboard access, preview, download, 
     await page.locator('#attachment-rename-save').click();
     assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('cannot contain'));
     await page.locator('#attachment-rename-input').fill('bad\\name.pdf');
+    await page.locator('#attachment-rename-save').click();
+    assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('cannot contain'));
+    await page.locator('#attachment-rename-input').evaluate(input => { input.value = 'bad\\u0001name.pdf'; });
     await page.locator('#attachment-rename-save').click();
     assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('cannot contain'));
     await page.locator('#attachment-rename-input').fill('Report.PdF');

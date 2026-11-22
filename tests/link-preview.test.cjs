@@ -21,7 +21,9 @@ test('classifies Office and archive file links as unsupported', () => {
 
 test('extension matching is case-insensitive and ignores query strings', () => {
   assert.equal(classifyLink('https://files.example/photo.JPG?x=1').kind, 'image');
-  assert.equal(classifyLink('https://files.example/clip.MP4?download=1').kind, 'video');
+  const clip = classifyLink('https://files.example/clip.MP4?download=1');
+  assert.equal(clip.kind, 'video');
+  assert.equal(clip.src, 'https://files.example/clip.MP4?download=1');
 });
 
 test('HTTP is insecure while HTTPS is eligible for previews', () => {

@@ -19,9 +19,10 @@
   function classifyLink(rawUrl) {
     if (typeof rawUrl !== 'string' || !rawUrl.trim()) return invalid('A URL is required.');
 
+    const originalUrl = rawUrl.trim();
     let parsed;
     try {
-      parsed = new URL(rawUrl.trim());
+      parsed = new URL(originalUrl);
     } catch (_) {
       return invalid('The URL could not be parsed.');
     }
@@ -33,7 +34,7 @@
       return invalid('URLs containing a username or password are not allowed.');
     }
 
-    const externalUrl = parsed.href;
+    const externalUrl = originalUrl;
     if (parsed.protocol === 'http:') {
       return { kind: 'insecure', src: '', externalUrl, reason: 'HTTP links cannot be previewed here.' };
     }
@@ -71,7 +72,7 @@
     else if (AUDIO_EXTENSIONS.has(extension)) kind = 'audio';
     else if (UNSUPPORTED_EXTENSIONS.has(extension)) kind = 'unsupported-file';
 
-    return { kind, src: parsed.href, externalUrl, reason: '' };
+    return { kind, src: originalUrl, externalUrl, reason: '' };
   }
 
   return Object.freeze({ classifyLink });

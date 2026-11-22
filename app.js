@@ -2098,7 +2098,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
               '<span class="min-w-0"><span class="block text-xs font-medium text-main truncate">' + fileName +
               '</span><span class="block text-[11px] text-muted">' + fileType + ' · ' + fileSize + '</span></span>' +
             '</button>' +
-            '<button type="button" data-att-menu="' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Options for ' + (att.name || 'Attachment') +
+            '<button type="button" data-att-menu="' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Options for ' + fileName +
               '" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main shrink-0" style="min-width:44px;min-height:44px" title="Attachment options">' +
               '<i data-lucide="more-vertical" class="w-3.5 h-3.5"></i></button>' +
           '</div>';
@@ -2555,7 +2555,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         previewGeneration++;
         document.getElementById('file-preview-overlay').classList.add('hidden');
         document.getElementById('file-preview-body').replaceChildren();
-        document.getElementById('file-preview-download').classList.remove('hidden');
+        document.getElementById('file-preview-download').classList.add('hidden');
         if (previewReturnFocus && previewReturnFocus.focus) previewReturnFocus.focus();
         previewReturnFocus = null;
         if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
