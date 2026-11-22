@@ -499,6 +499,7 @@
       const supabaseClient = window.supabase && window.supabase.createClient
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
         : null;
+      let activeStorageKey='primary';
       let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncTimer=null;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:new Date(n.updatedAt||n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function queueCloudSync(delay=900){if(!authUser||!supabaseClient||!syncReady)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
@@ -606,11 +607,29 @@
         }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';}
         finally{syncInProgress=false;if(currentView==='settings')renderMain();}
       }
+      async function switchAccountWorkspace(user) {
+        const targetKey=user?'account:'+user.id:'primary';
+        if(targetKey===activeStorageKey)return;
+        await persistenceQueue;
+        const current=cloneData(state);
+        const target=await readDatabaseState(targetKey);
+        if(!target&&user&&activeStorageKey==='primary'&&!(current.syncMeta&&current.syncMeta.ownerUserId)){
+          current.syncMeta=current.syncMeta||{};current.syncMeta.ownerUserId=user.id;
+          activeStorageKey=targetKey;state=normalizeState(current);lastSavedState=cloneData(state);await saveState();return;
+        }
+        activeStorageKey=targetKey;
+        state=normalizeState(target&&Array.isArray(target.notes)?target:getDefaultData());
+        state.syncMeta=state.syncMeta||{};
+        if(user)state.syncMeta.ownerUserId=user.id;
+        lastSavedState=cloneData(state);
+        await saveState();
+        applyTheme();renderAll();
+      }
       async function initializeSupabaseAuth(){
         if(!supabaseClient){authReady=true;syncStatus='unavailable';return;}
         try{const r=await supabaseClient.auth.getSession();if(r.error)throw r.error;authUser=r.data.session?r.data.session.user:null;authReady=true;
-          supabaseClient.auth.onAuthStateChange((_event,session)=>{authUser=session?session.user:null;authReady=true;if(authUser){syncReady=true;queueCloudSync(200);}else{syncReady=false;syncStatus='idle';}if(currentView==='settings')renderMain();});
-          if(authUser){syncReady=true;await syncCloudNotes();}
+          supabaseClient.auth.onAuthStateChange((_event,session)=>{const nextUser=session?session.user:null;const changed=(authUser&&nextUser&&authUser.id!==nextUser.id)||(!authUser&&nextUser)||(authUser&&!nextUser);authUser=nextUser;authReady=true;if(changed){switchAccountWorkspace(authUser).then(()=>{if(authUser){syncReady=true;queueCloudSync(200);}else{syncReady=false;syncStatus='idle';}renderAll();}).catch(e=>{console.error('Could not switch local account workspace:',e);syncStatus='error';syncError='Could not load this account’s local notes';});}else if(authUser){syncReady=true;queueCloudSync(200);}else{syncReady=false;}if(currentView==='settings')renderMain();});
+          if(authUser){await switchAccountWorkspace(authUser);syncReady=true;await syncCloudNotes();}
         }catch(e){console.error('Supabase auth initialization failed:',e);authReady=true;syncStatus='error';syncError=e.message||'Could not restore account session';}
       }
       async function handleGoogleAccountAction(){
@@ -694,11 +713,11 @@
         return data;
       }
 
-      async function readDatabaseState() {
+      async function readDatabaseState(key = 'primary') {
         const db = await openDatabase();
         return new Promise((resolve, reject) => {
           const tx = db.transaction(DB_STORE, 'readonly');
-          const request = tx.objectStore(DB_STORE).get('primary');
+          const request = tx.objectStore(DB_STORE).get(key);
           request.onsuccess = () => resolve(request.result ? request.result.value : null);
           request.onerror = () => reject(request.error || new Error('Could not read local data.'));
         });
@@ -716,7 +735,7 @@
           const db = await openDatabase();
           await new Promise((resolve, reject) => {
             const tx = db.transaction(DB_STORE, 'readwrite');
-            tx.objectStore(DB_STORE).put({ key: 'primary', value: snapshot, updatedAt: Date.now() });
+            tx.objectStore(DB_STORE).put({ key: activeStorageKey, value: snapshot, updatedAt: Date.now() });
             tx.oncomplete = resolve;
             tx.onerror = () => reject(tx.error || new Error('Could not save local data.'));
             tx.onabort = () => reject(tx.error || new Error('Local save was interrupted.'));
