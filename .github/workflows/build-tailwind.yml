@@ -1,0 +1,40 @@
+name: Build production Tailwind CSS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: ${{ !contains(github.event.head_commit.message, '[skip tailwind build]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compile Tailwind CSS 3.4.17
+        run: npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i ./src/tailwind.css -o ./tailwind.css --minify
+
+      - name: Commit compiled stylesheet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tailwind.css
+          if git diff --cached --quiet; then
+            echo "Compiled stylesheet is already current."
+          else
+            git commit -m "Build production Tailwind stylesheet [skip tailwind build]"
+            git push origin main
+          fi
