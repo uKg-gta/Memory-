@@ -8,6 +8,7 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Extracted account-scoped IndexedDB read/write/delete operations into `note-storage.js`.
 - Extracted state defaults, cloning, and normalization into `note-state-core.js`.
 - Extracted Supabase session/OAuth/sign-out delegation into `note-auth-core.js`.
+- Extracted note draft, empty-draft, checklist, and label model operations into `note-editor-core.js`.
 - Added unit tests for state normalization, sync planning, and auth delegation, plus browser integration tests for IndexedDB account isolation and Blob persistence.
 - Added the new modules to the service-worker app shell and CI test workflow.
 - Documented the limits of the automated coverage: live OAuth, Supabase RLS, concurrent project-backed sync, and complete attachment transfers still need staging/acceptance testing.
