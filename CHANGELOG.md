@@ -121,3 +121,13 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 
 - Added deterministic Node tests that guard the two production migrations: Realtime publication membership and least-privilege application table grants.
 - Added the migration regression tests to the GitHub Actions security-verification workflow. These are static migration checks, not live database integration tests.
+
+
+## 2026-11-23 — Attachment upload policy
+
+- Approved a 50 MiB maximum per attachment, with all file types accepted (no MIME allowlist).
+- Added a shared policy module and client-side rejection for files above the limit.
+- Added a second size guard immediately before Supabase Storage upload so imported/restored or otherwise injected Blobs cannot bypass the UI check.
+- Added unit coverage for the exact limit, oversized files, invalid sizes, and unrestricted file types; wired it into CI.
+- Bumped the service-worker shell cache to v30 and precached the new policy module.
+- The live Storage bucket remains private. Its bucket-level size ceiling and the project-wide ceiling must be set/verified in Supabase Storage; app-side validation is not a substitute for server enforcement.
