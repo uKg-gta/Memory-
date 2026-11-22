@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#F4EFE5" />
-  <meta name="description" content="A personal, offline-first notes space." />
+  <meta name="description" content="A personal notes space with cloud sync and read-only offline access." />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./icon-192.png" type="image/png" />
   <title>Memory — Personal Notes</title>
@@ -188,6 +188,8 @@
       text-decoration: line-through;
       opacity: 0.6;
     }
+    body.cloud-readonly #quick-capture-btn, body.cloud-readonly #new-folder-form, body.cloud-readonly #new-label-form, body.cloud-readonly #bulk-toolbar, body.cloud-readonly #editor-more-btn, body.cloud-readonly #formatting-bar, body.cloud-readonly #add-link-bar, body.cloud-readonly #reset-memory-btn, body.cloud-readonly #import-json-input, body.cloud-readonly [data-folder-menu], body.cloud-readonly [data-delete-label], body.cloud-readonly [data-edit-link], body.cloud-readonly [data-remove-link], body.cloud-readonly [data-remove-att], body.cloud-readonly .remove-check-btn { display: none !important; }
+    body.cloud-readonly .drag-handle { display: none !important; }
 
     /* Subtle custom scrollbar */
     ::-webkit-scrollbar {
@@ -273,6 +275,8 @@
           <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
         </button>
       </header>
+
+      <div id="cloud-status-banner" class="hidden px-4 md:px-6 py-2 text-xs text-muted border-b border-muted bg-surface" role="status" aria-live="polite"></div>
 
       <!-- Workspace Area -->
       <main id="main-content" tabindex="-1" class="flex-1 px-4 md:px-8 py-5 pb-28 max-w-6xl w-full mx-auto">
@@ -514,7 +518,7 @@
         : null;
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncTimer=null,realtimeChannel=null,syncRequested=false;
+      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,realtimeChannel=null,syncRequested=false;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:new Date(n.updatedAt||n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function queueCloudSync(delay=100){if(!authUser||!supabaseClient||!syncReady)return;if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
       async function subscribeToAccountChanges(userId){
@@ -540,7 +544,7 @@
       async function syncCloudNotes(){
         if(!authUser||!supabaseClient||!syncReady||!navigator.onLine)return;
         if(syncInProgress){syncRequested=true;return;}
-        syncRequested=false;syncInProgress=true;syncStatus='syncing';syncError='';if(currentView==='settings')renderMain();
+        syncRequested=false;syncInProgress=true;syncStatus='syncing';syncError='';applyReadOnlyMode();if(currentView==='settings')renderMain();
         try{
           const userId=authUser.id;
           // Read cloud records first. Nothing on the cloud is deleted merely because this device is empty.
@@ -558,7 +562,7 @@
             document.getElementById('editor-overlay').classList.add('hidden');
             currentView='home';activeFolderId=null;activeLabelId=null;searchQuery='';
             selectionMode=false;selectedIds.clear();
-            lastSavedState=cloneData(state);suppressDeleteDetection=true;await saveState();suppressDeleteDetection=false;
+            lastSavedState=cloneData(state);suppressDeleteDetection=true;suppressQueueCloudSync=true;await saveState();suppressQueueCloudSync=false;suppressDeleteDetection=false;
           }
           const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
           const labelMap=new Map(remoteLabels.filter(x=>x.client_id&&x.client_id!==RESET_MARKER_CLIENT_ID).map(x=>[x.client_id,x]));
@@ -646,9 +650,9 @@
           for(const r of freshFolders){if(r.client_id&&!r.deleted_at&&!localFolderIds.has(r.client_id))state.folders.push({id:r.client_id,name:r.name,updatedAt:r.updated_at});}
           const localLabelIds=new Set(state.labels.map(x=>x.id));
           for(const r of freshLabels){if(r.client_id&&!r.deleted_at&&!localLabelIds.has(r.client_id))state.labels.push({id:r.client_id,name:r.name,colour:r.colour||'olive',updatedAt:r.updated_at});}
-          await saveState();suppressDeleteDetection=false;syncStatus='synced';
+          suppressQueueCloudSync=true;await saveState();suppressQueueCloudSync=false;suppressDeleteDetection=false;syncStatus='synced';applyReadOnlyMode();
         }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';showToast('Sync failed. Open Settings for details.');}
-        finally{syncInProgress=false;if(currentView==='settings')renderMain();if(syncRequested){syncRequested=false;queueCloudSync(100);}}
+        finally{syncInProgress=false;suppressQueueCloudSync=false;applyReadOnlyMode();if(currentView==='settings')renderMain();if(syncRequested){syncRequested=false;queueCloudSync(100);}}
       }
       async function deleteDatabaseState(key) {
         const db = await openDatabase();
@@ -850,7 +854,7 @@
             tx.onerror = () => reject(tx.error || new Error('Could not save local data.'));
             tx.onabort = () => reject(tx.error || new Error('Local save was interrupted.'));
           });
-          lastSavedState=cloneData(snapshot);if(authUser&&syncReady)queueCloudSync();
+          lastSavedState=cloneData(snapshot);if(authUser&&syncReady&&!suppressQueueCloudSync)queueCloudSync();
           return true;
         }).catch(error => {
           console.error('IndexedDB save failed:', error);
@@ -898,6 +902,33 @@
 
       function uid(prefix) {
         return prefix + '-' + Math.random().toString(36).slice(2, 9);
+      }
+
+      function canEditCloudData() { return !!authUser && !!syncReady && navigator.onLine && syncStatus === 'synced' && !syncInProgress; }
+
+      function applyReadOnlyMode() {
+        const readOnly = !canEditCloudData();
+        document.body.classList.toggle('cloud-readonly', readOnly);
+        const banner = document.getElementById('cloud-status-banner');
+        if (banner) {
+          banner.classList.toggle('hidden', !readOnly);
+          banner.textContent = !navigator.onLine ? 'Offline · read-only. Showing the last notes saved on this device.' : syncStatus === 'error' ? 'Cloud sync needs attention · read-only until your notes sync successfully.' : 'Connecting and syncing your notes · editing is temporarily paused.';
+        }
+        const overlay = document.getElementById('editor-overlay');
+        if (overlay && !overlay.classList.contains('hidden')) {
+          const title = document.getElementById('editor-title');
+          const body = document.getElementById('editor-body');
+          if (title) title.readOnly = readOnly;
+          if (body) body.contentEditable = String(!readOnly);
+          document.querySelectorAll('#editor-checklist-items input').forEach(el => { el.disabled = readOnly && el.type === 'checkbox'; el.readOnly = readOnly && el.type !== 'checkbox'; });
+          document.querySelectorAll('#editor-panel button').forEach(btn => { btn.disabled = readOnly && !btn.matches('#editor-done-btn,[data-preview-att],[data-open-link]'); });
+          const status = document.getElementById('editor-save-status');
+          if (status && readOnly) status.textContent = !navigator.onLine ? 'Offline · read-only' : 'Read-only until cloud sync completes';
+        }
+        document.querySelectorAll('#main-content button').forEach(btn => { btn.disabled = readOnly && !btn.matches('[data-open-folder],[data-open-label]'); });
+        document.querySelectorAll('#main-content input,#main-content select,#main-content textarea').forEach(el => { if (readOnly) el.disabled = true; });
+        const syncNow = document.getElementById('sync-now-btn');
+        if (syncNow) syncNow.disabled = !navigator.onLine || syncInProgress;
       }
 
       function showToast(msg) {
@@ -2136,6 +2167,7 @@
 
       // --- NOTE EDITOR ---
       function openEditor(noteId) {
+        if (!noteId && !canEditCloudData()) { showToast('Connect and sync Memory before creating a note.'); return; }
         formattingBarOpen = false;
         document.getElementById('formatting-bar').classList.add('hidden');
         document.getElementById('add-link-bar').classList.add('hidden');
@@ -2185,6 +2217,7 @@
         document.getElementById('editor-overlay').classList.remove('hidden');
         document.getElementById('editor-dialog-title').textContent = titleEl.value.trim() || 'Untitled note';
         (noteId ? titleEl : bodyEl).focus();
+        applyReadOnlyMode();
         refreshIcons();
       }
 
@@ -2198,7 +2231,7 @@
       }
 
       function persistEditorDraft() {
-        if (!editorDraft) return;
+        if (!editorDraft || !canEditCloudData()) return;
         editorDraft.title = document.getElementById('editor-title').value;
         editorDraft.bodyHtml = document.getElementById('editor-body').innerHTML;
 
@@ -2225,6 +2258,7 @@
       }
 
       function scheduleAutoSave() {
+        if (!canEditCloudData()) return;
         document.getElementById('editor-save-status').textContent = 'Saving…';
         clearTimeout(autoSaveTimer);
         autoSaveTimer = setTimeout(() => {
@@ -2236,7 +2270,7 @@
 
       function closeEditor() {
         clearTimeout(autoSaveTimer);
-        if (editorDraft) {
+        if (editorDraft && canEditCloudData()) {
           editorDraft.title = document.getElementById('editor-title').value;
           editorDraft.bodyHtml = document.getElementById('editor-body').innerHTML;
           if (!isDraftEmpty()) {
@@ -2596,6 +2630,7 @@
         renderNav();
         renderMain();
         renderBulkToolbar();
+        applyReadOnlyMode();
         refreshIcons();
       }
 
@@ -2823,8 +2858,9 @@
       document.getElementById('file-preview-close').addEventListener('click', closeAttachmentPreview);
       document.getElementById('file-preview-overlay').addEventListener('click', e => { if (e.target.id === 'file-preview-overlay') closeAttachmentPreview(); });
 
-      // Retry pending link titles when connectivity returns.
-      window.addEventListener('online',()=>{retryPendingLinkMetadata();queueCloudSync(250);});
+      // Retry cloud refresh when connectivity returns; offline mode remains read-only.
+      window.addEventListener('online',()=>{retryPendingLinkMetadata();queueCloudSync(250);applyReadOnlyMode();});
+      window.addEventListener('offline',()=>{applyReadOnlyMode();if(currentView==='settings')renderMain();});
       window.addEventListener('focus',()=>queueCloudSync(250));
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')queueCloudSync(250);});
       // Keep already-open devices in step with changes made elsewhere. Background tabs do not poll.
