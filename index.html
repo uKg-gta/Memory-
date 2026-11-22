@@ -540,7 +540,7 @@
       });
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,syncStatus='idle',syncError='',realtimeStatus='connecting',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null;
+      let authUser=null,authReady=false,syncStatus='idle',syncError='',realtimeStatus='connecting',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null,syncIdleResolvers=[];
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function noteSyncFingerprint(n){return MemorySyncCore.fingerprintNote(n,sanitizeNoteHtml);}
       function queueCloudSync(delay=100,source='local'){if(!authUser||!supabaseClient||!syncReady)return;if(source==='realtime'){clearTimeout(realtimeSyncTimer);realtimeSyncTimer=setTimeout(()=>queueCloudSync(100,'realtime-run'),350);return;}if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
@@ -552,6 +552,10 @@
         const all=[]; let from=0, pageSize=500;
         while(true){const q=await supabaseClient.from(table).select(columns).eq('user_id',userId).range(from,from+pageSize-1);if(q.error)throw q.error;const batch=q.data||[];all.push(...batch);if(batch.length<pageSize)break;from+=pageSize;}
         return all;
+      }
+      function waitForSyncIdle(){
+        if(!syncInProgress)return Promise.resolve();
+        return new Promise(resolve=>syncIdleResolvers.push(resolve));
       }
       async function syncCloudNotes(){
         if(!authUser||!supabaseClient||!syncReady||!navigator.onLine)return;
@@ -668,7 +672,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           for(const r of freshLabels){if(r.client_id&&!r.deleted_at&&!localLabelIds.has(r.client_id))state.labels.push({id:r.client_id,name:r.name,colour:r.colour||'olive',updatedAt:r.updated_at});}
           suppressQueueCloudSync=true;await saveState();suppressQueueCloudSync=false;suppressDeleteDetection=false;syncStatus='synced';applyReadOnlyMode();
         }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';showToast('Sync failed. Open Settings for details.');}
-        finally{syncInProgress=false;suppressQueueCloudSync=false;applyReadOnlyMode();if(currentView==='settings')renderMain();if(syncRequested){syncRequested=false;queueCloudSync(100);}}
+        finally{syncInProgress=false;suppressQueueCloudSync=false;applyReadOnlyMode();if(currentView==='settings')renderMain();const idleWaiters=syncIdleResolvers.splice(0);idleWaiters.forEach(resolve=>resolve());if(syncRequested){syncRequested=false;queueCloudSync(100);}}
       }
       async function deleteDatabaseState(key) {
         await noteStorage.remove(key);
@@ -737,9 +741,9 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
             if (changed) {
               syncReady = false;
               clearTimeout(syncTimer); clearTimeout(realtimeSyncTimer); syncRequested = false;
-              realtimeStatus = 'disconnected';
+              realtimeStatus = 'connecting';
               realtimeManager.close();
-              switchAccountWorkspace(nextUser).then(async () => {
+              waitForSyncIdle().then(() => switchAccountWorkspace(nextUser)).then(async () => {
                 syncReady = true; await subscribeToAccountChanges(nextUser.id); queueCloudSync(100); updateAuthGate(); renderAll();
               }).catch(e => {
                 console.error('Could not switch local account workspace:', e);
