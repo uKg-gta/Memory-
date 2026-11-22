@@ -93,3 +93,25 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - JavaScript syntax and selected static checks have been run during development.
 - Browser security harness tests and real-device acceptance tests remain separate verification steps; a passing syntax check is not evidence that those browser scenarios have passed.
 - The app remains a prototype and should not be described as production-ready until authentication, sync, conflict handling, offline behaviour, attachment transfers, account reset, and recovery have passed real-browser testing.
+
+
+## 2026-11-22 18:51 UTC — Live Realtime publication correction
+
+- The live supabase_realtime publication initially contained only public.notes, even though the client subscribed to three tables.
+- Added public.folders and public.labels to the publication and verified all three memberships in the live PostgreSQL catalog.
+- Added the matching migration to the repository.
+
+## 2026-11-22 18:52 UTC — Application table least-privilege grants
+
+- Found that anon and authenticated had broad table privileges, including TRUNCATE, on all five application data tables. RLS does not protect against TRUNCATE.
+- Revoked all table privileges from anon; revoked broad privileges from authenticated and granted only SELECT, INSERT, UPDATE, and DELETE.
+- Verified effective privileges for all five tables: anon has none, and authenticated has CRUD without TRUNCATE or TRIGGER.
+- Added the matching migration to the repository.
+
+## Issue 4 verification status
+
+- The latest pre-remediation GitHub Actions run passed the configured Node and Playwright workflow, including responsive checks across Chromium, Firefox, and WebKit. This isolated suite does not prove live Supabase or Google OAuth behaviour.
+- The live database catalog was inspected read-only except for the two narrowly scoped migrations above. No production user records or attachments were used for destructive testing.
+- Live Google OAuth, authenticated cross-account RLS attempts, real attachment lifecycle, interruption/recovery, and end-to-end multi-tab Realtime delivery remain unverified.
+- The current Storage bucket has no per-bucket file-size limit or MIME allowlist. The app also has no configured Content Security Policy. These are production hardening gaps.
+- The app remains a prototype and must not be described as production-ready until the outstanding live acceptance tests and security hardening are completed.
