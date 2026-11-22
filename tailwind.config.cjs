@@ -1,6 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./index.html'],
+  // The app builds most of its UI from JavaScript templates. Scan those files
+  // as well as the HTML shell so production CSS retains dynamically rendered
+  // utility classes (including the responsive note-grid layout).
+  content: ['./index.html', './app.js', './note-*.js'],
   darkMode: 'class',
   theme: {
     extend: {
