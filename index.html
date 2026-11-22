@@ -499,38 +499,43 @@
       const supabaseClient = window.supabase && window.supabase.createClient
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
         : null;
-      let authUser = null;
-      let authReady = false;
-      async function initializeSupabaseAuth() {
-        if (!supabaseClient) { authReady = true; return; }
-        try {
-          const result = await supabaseClient.auth.getSession();
-          if (result.error) throw result.error;
-          authUser = result.data.session ? result.data.session.user : null;
-          authReady = true;
-          supabaseClient.auth.onAuthStateChange((_event, session) => {
-            authUser = session ? session.user : null;
-            authReady = true;
-            if (currentView === 'settings') renderMain();
-          });
-        } catch (error) {
-          console.error('Supabase auth initialization failed:', error);
-          authReady = true;
-        }
+      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncTimer=null;
+      function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:new Date(n.updatedAt||n.createdAt||Date.now()).toISOString(),deleted_at:null};}
+      function queueCloudSync(delay=900){if(!authUser||!supabaseClient||!syncReady)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
+      async function syncCloudNotes(){
+        if(!authUser||!supabaseClient||syncInProgress||!syncReady||!navigator.onLine)return;
+        syncInProgress=true;syncStatus='syncing';syncError='';if(currentView==='settings')renderMain();
+        try{
+          const userId=authUser.id;
+          const q=await supabaseClient.from('notes').select('id,user_id,client_id,title,body_html,checklist,links,colour,pinned,sort_order,archived,trashed,created_at,updated_at,deleted_at').eq('user_id',userId);
+          if(q.error)throw q.error;
+          const rows=q.data||[],remote=new Map(rows.filter(r=>r.client_id).map(r=>[r.client_id,r])),local=new Map(state.notes.map(n=>[n.id,n])),merged=[],uploads=[];
+          for(const n of state.notes){
+            const r=remote.get(n.id);
+            if(!r){uploads.push(cloudNotePayload(n,userId));merged.push(n);continue;}
+            const lt=Date.parse(n.updatedAt||n.createdAt||0)||0,rt=Date.parse(r.updated_at||r.created_at||0)||0;
+            if(r.deleted_at&&Date.parse(r.deleted_at)>=lt)continue;
+            if(rt>lt)merged.push({id:n.id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:n.folderId||'',labelIds:n.labelIds||[],attachments:n.attachments||[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||n.createdAt||Date.now(),updatedAt:r.updated_at});
+            else{uploads.push(cloudNotePayload(n,userId));merged.push(n);}
+          }
+          for(const r of rows)if(r.client_id&&!local.has(r.client_id)&&!r.deleted_at)merged.push({id:r.client_id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:'',labelIds:[],attachments:[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||Date.now(),updatedAt:r.updated_at});
+          if(uploads.length){const up=await supabaseClient.from('notes').upsert(uploads,{onConflict:'user_id,client_id'});if(up.error)throw up.error;}
+          suppressDeleteDetection=true;state.notes=merged;await saveState();suppressDeleteDetection=false;syncStatus='synced';
+        }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';}
+        finally{syncInProgress=false;if(currentView==='settings')renderMain();}
       }
-      async function handleGoogleAccountAction() {
-        if (!supabaseClient) { showToast('Account connection could not load. Check your internet connection and reload.'); return; }
-        if (authUser) {
-          const result = await supabaseClient.auth.signOut();
-          if (result.error) showToast('Could not sign out: ' + result.error.message);
-          else showToast('Signed out. Your local notes remain on this device.');
-          return;
-        }
-        const redirectTo = window.location.origin + window.location.pathname;
-        const result = await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-        if (result.error) showToast('Google sign-in is not ready yet: ' + result.error.message);
+      async function initializeSupabaseAuth(){
+        if(!supabaseClient){authReady=true;syncStatus='unavailable';return;}
+        try{const r=await supabaseClient.auth.getSession();if(r.error)throw r.error;authUser=r.data.session?r.data.session.user:null;authReady=true;
+          supabaseClient.auth.onAuthStateChange((_event,session)=>{authUser=session?session.user:null;authReady=true;if(authUser){syncReady=true;queueCloudSync(200);}else{syncReady=false;syncStatus='idle';}if(currentView==='settings')renderMain();});
+          if(authUser){syncReady=true;await syncCloudNotes();}
+        }catch(e){console.error('Supabase auth initialization failed:',e);authReady=true;syncStatus='error';syncError=e.message||'Could not restore account session';}
       }
-
+      async function handleGoogleAccountAction(){
+        if(!supabaseClient){showToast('Account connection could not load. Check your internet connection and reload.');return;}
+        if(authUser){const r=await supabaseClient.auth.signOut();if(r.error)showToast('Could not sign out: '+r.error.message);else showToast('Signed out. Local notes remain on this device.');return;}
+        const redirectTo=window.location.origin+window.location.pathname;const r=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo}});if(r.error)showToast('Google sign-in failed: '+r.error.message);
+      }
 
 
       const NOTE_COLOURS = [
@@ -601,6 +606,7 @@
           note.links = Array.isArray(note.links) ? note.links : [];
           note.checklist = Array.isArray(note.checklist) ? note.checklist : [];
           if (!note.createdAt) note.createdAt = Date.now();
+          if (!note.updatedAt) note.updatedAt = new Date(note.createdAt).toISOString();
         });
         return data;
       }
@@ -617,7 +623,7 @@
 
       function saveState() {
         let snapshot;
-        try { snapshot = cloneData(state); }
+        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));for(const n of snapshot.notes){const old=prev.get(n.id);if(old&&JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined}))n.updatedAt=new Date().toISOString();}} }
         catch (error) {
           console.error('Could not prepare data for IndexedDB:', error);
           showToast('Could not prepare local data for saving');
@@ -632,6 +638,7 @@
             tx.onerror = () => reject(tx.error || new Error('Could not save local data.'));
             tx.onabort = () => reject(tx.error || new Error('Local save was interrupted.'));
           });
+          lastSavedState=cloneData(snapshot);if(authUser&&syncReady&&!syncInProgress)queueCloudSync();
           return true;
         }).catch(error => {
           console.error('IndexedDB save failed:', error);
@@ -644,7 +651,7 @@
       async function initializeStorage() {
         try {
           const stored = await readDatabaseState();
-          state = normalizeState(stored && Array.isArray(stored.notes) ? stored : getDefaultData());
+          state = normalizeState(stored && Array.isArray(stored.notes) ? stored : getDefaultData());lastSavedState=cloneData(state);
           try { localStorage.removeItem('memory_app_prototype_v6'); } catch (_) {}
           if (!stored) await saveState();
         } catch (error) {
@@ -1237,7 +1244,7 @@
             <div class="py-4 border-y border-muted">
               <div class="text-sm font-medium">Memory account</div>
               <div id="account-status" class="text-xs text-muted mt-1" role="status" aria-live="polite">${!authReady ? "Checking account status…" : (authUser ? "Signed in as " + escapeHtml(authUser.email || "Google account") : "Not signed in")}</div>
-              <div class="text-xs text-muted mt-1">Google sign-in connects your account. Notes are still saved on this device; cloud sync will be added separately.</div>
+              <div class="text-xs text-muted mt-1">${!authReady ? 'Checking account session…' : (authUser ? (syncStatus === 'syncing' ? 'Syncing notes…' : syncStatus === 'synced' ? 'Notes synced. Offline copies remain on this device.' : syncStatus === 'error' ? 'Sync needs attention: ' + escapeHtml(syncError) : 'Preparing secure sync…') : 'Sign in to sync notes across devices. Local notes remain on this device.')}</div>
               <button id="google-account-btn" type="button" class="mt-3 px-3.5 py-2 rounded-xl btn-olive text-xs font-medium">${authUser ? "Sign out" : "Continue with Google"}</button>
               <div class="text-[11px] text-muted mt-2">Google OAuth must first be enabled in the Memory Supabase project with your Google client ID and secret.</div>
             </div>
@@ -1276,6 +1283,7 @@
         document.getElementById('export-json-btn').addEventListener('click', exportCompleteBackup);
         document.getElementById('import-json-input').addEventListener('change', importCompleteBackup);
         document.getElementById('google-account-btn').addEventListener('click', handleGoogleAccountAction);
+        const syncNow=document.getElementById('sync-now-btn');if(syncNow)syncNow.addEventListener('click',()=>syncCloudNotes());
       }
 
       function blobToDataUrl(blob) {
@@ -2477,7 +2485,7 @@
       document.getElementById('file-preview-overlay').addEventListener('click', e => { if (e.target.id === 'file-preview-overlay') closeAttachmentPreview(); });
 
       // Retry pending link titles when connectivity returns.
-      window.addEventListener('online', retryPendingLinkMetadata);
+      window.addEventListener('online',()=>{retryPendingLinkMetadata();queueCloudSync(250);});
 
       // PWA install prompt (Chrome/Edge); iOS users can use Share > Add to Home Screen.
       window.addEventListener('beforeinstallprompt', event => {
