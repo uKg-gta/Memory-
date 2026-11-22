@@ -84,7 +84,7 @@ test('only an exact allowlisted third-party URL is cached', async () => {
   const allowed = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js';
   await dispatch(worker, { method: 'GET', mode: 'no-cors', url: allowed });
   assert.deepEqual(worker.writes.map(write => write.key), [allowed]);
-  await dispatch(worker, { method: 'GET', mode: 'no-cors', url: allowed + '?unexpected=1' });
+  await dispatch(worker, { method: 'GET', mode: 'no-cors', url: allowed + '?unexpected=1' }, false);
   assert.equal(worker.writes.length, 1);
 });
 

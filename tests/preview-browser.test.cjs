@@ -180,7 +180,7 @@ test('link preview window renders HTTPS resources with restrictive frames and sa
     assert.equal(await external.evaluate(element => !element.classList.contains('hidden')), true);
 
     await page.evaluate(() => window.__memoryTest.openLinkPreview({ title: 'Insecure', url: 'http://stub.example.test/page' }));
-    assert.ok((await page.locator('#file-preview-body').innerText()).includes('This link uses http, so it can’t be previewed here. Use Open externally.'));
+    assert.ok((await page.locator('#file-preview-body').innerText()).includes("This link uses http, so it can't be previewed here. Use Open externally."));
     assert.equal(await external.evaluate(element => !element.classList.contains('hidden')), true);
 
     await page.evaluate(() => window.__memoryTest.openLinkPreview({ title: 'Invalid', url: 'javascript:alert(1)' }));
@@ -222,7 +222,7 @@ test('attachment menu supports positioning, keyboard access, preview, download, 
       const button = document.querySelector(selector);
       button.style.position = 'fixed';
       button.style.right = '4px';
-      button.style.bottom = '4px';
+      button.style.bottom = '72px';
     }, trigger);
     await page.locator(trigger).click();
     const menu = page.locator('#attachment-menu');
