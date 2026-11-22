@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { fingerprintNote, fingerprintAttachments } = require('../note-sync-core.js');
+const { fingerprintNote, fingerprintAttachments, attachmentMetadataUpdate } = require('../note-sync-core.js');
 
 test('note fingerprint includes only cloud-synchronized note fields', () => {
   const note = {
@@ -119,4 +119,14 @@ test('attachment fingerprint ignores binary Blob data and defaults missing metad
   assert.deepEqual(JSON.parse(fingerprintAttachments({ attachments: [{ id: 'x', blob: { secret: true } }] })), [
     { id: 'x', name: '', type: '', sizeBytes: 0, mimeType: '' }
   ]);
+});
+
+ 
+test('renaming an attachment changes its fingerprint and updates only the existing file_name metadata', () => {
+  const original = { attachments: [{ id: 'a1', name: 'report-old.pdf', type: 'PDF', sizeBytes: 1024, mimeType: 'application/pdf' }] };
+  const renamed = { attachments: [{ ...original.attachments[0], name: 'Report.PdF' }] };
+  assert.notEqual(fingerprintAttachments(original), fingerprintAttachments(renamed));
+  assert.deepEqual(attachmentMetadataUpdate({ id: 'row-1', file_name: 'report-old.pdf', storage_path: 'same/path' }, renamed.attachments[0]), { file_name: 'Report.PdF' });
+  assert.equal(attachmentMetadataUpdate({ file_name: 'Report.PdF', deleted_at: null }, renamed.attachments[0]), null);
+  assert.equal(attachmentMetadataUpdate({ file_name: 'report-old.pdf', deleted_at: '2026-01-01T00:00:00Z' }, renamed.attachments[0]), null);
 });
