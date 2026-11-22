@@ -16,6 +16,7 @@
   <script src="./note-sync-core.js"></script>
   <script src="./note-storage.js"></script>
   <script src="./note-state-core.js"></script>
+  <script src="./note-auth-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -521,6 +522,7 @@
       const supabaseClient = window.supabase && window.supabase.createClient
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
         : null;
+      const accountAuth = MemoryNoteAuth.create(supabaseClient, () => window.location.origin + window.location.pathname);
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
       let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,realtimeChannel=null,syncRequested=false,realtimeSyncTimer=null;
@@ -703,7 +705,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           authReady = true; syncStatus = 'unavailable'; updateAuthGate(); return;
         }
         try {
-          const r = await supabaseClient.auth.getSession();
+          const r = await accountAuth.getSession();
           if (r.error) throw r.error;
           authUser = r.data.session ? r.data.session.user : null;
           if (authUser) {
@@ -716,7 +718,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           }
           authReady = true;
           updateAuthGate();
-          supabaseClient.auth.onAuthStateChange((_event, session) => {
+          accountAuth.onAuthStateChange((_event, session) => {
             const nextUser = session ? session.user : null;
             const changed = (authUser && nextUser && authUser.id !== nextUser.id) || (!authUser && nextUser) || (authUser && !nextUser);
             authUser = nextUser;
@@ -747,8 +749,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       }
       async function handleGoogleAccountAction(){
         if(!supabaseClient){showToast('Account connection could not load. Check your internet connection and reload.');return;}
-        if(authUser){const r=await supabaseClient.auth.signOut();if(r.error)showToast('Could not sign out: '+r.error.message);else showToast('Signed out. Local notes remain on this device.');return;}
-        const redirectTo=window.location.origin+window.location.pathname;const r=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo}});if(r.error)showToast('Google sign-in failed: '+r.error.message);
+        if(authUser){const r=await accountAuth.signOut();if(r.error)showToast('Could not sign out: '+r.error.message);else showToast('Signed out. Local notes remain on this device.');return;}
+        const r=await accountAuth.signInWithGoogle();if(r.error)showToast('Google sign-in failed: '+r.error.message);
       }
 
 
