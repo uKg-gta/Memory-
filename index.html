@@ -697,9 +697,9 @@
       function normalizeState(data) {
         data.theme = data.theme === 'dark' ? 'dark' : 'light';
         data.folders = Array.isArray(data.folders) ? data.folders : [];
-        data.folders.forEach(x=>{if(!x.updatedAt)x.updatedAt=new Date().toISOString();});
+        data.folders.forEach(x=>{if(!x.updatedAt)x.updatedAt='1970-01-01T00:00:00.000Z';});
         data.labels = Array.isArray(data.labels) ? data.labels : [];
-        data.labels.forEach(label => { if (!label.colour) label.colour = 'olive'; if(!label.updatedAt)label.updatedAt=new Date().toISOString(); });
+        data.labels.forEach(label => { if (!label.colour) label.colour = 'olive'; if(!label.updatedAt)label.updatedAt='1970-01-01T00:00:00.000Z'; });
         data.notes = Array.isArray(data.notes) ? data.notes : [];
         data.notes.forEach(note => {
           note.folderId = note.folderId || '';
