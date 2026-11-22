@@ -1,3 +1,8 @@
+# 2026-11-22 — Prevent equal-timestamp sync loop
+
+- Fixed note merge comparison: a local note uploads only when its timestamp is strictly newer than the cloud version; equal timestamps now resolve to the cloud copy and do not cause repeated upserts or Realtime-triggered sync cycles.
+- Kept the 30-second visible-tab fallback refresh unchanged.
+
 # 2026-11-22 — Cloud-first editing with offline read-only cache
 
 - Supabase is the authoritative source for notes, folders, labels, relationships and attachment files.
