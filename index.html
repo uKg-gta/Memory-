@@ -603,10 +603,12 @@
               }
             }
             for(const ra of remoteAttachments.filter(a=>a.note_id===nr.id&&!a.deleted_at)){
-              if(n.attachments.some(a=>a.id===ra.client_id))continue;
+              const localAttachment=n.attachments.find(a=>a.id===ra.client_id);
+              if(localAttachment && localAttachment.blob instanceof Blob)continue;
               const download=await supabaseClient.storage.from('memory-attachments').download(ra.storage_path);
-              if(download.error)throw download.error;
-              n.attachments.push({id:ra.client_id||('a-'+ra.id),name:ra.file_name,type:(ra.file_name.split('.').pop()||'FILE').toUpperCase(),size:formatFileSize(ra.size_bytes),sizeBytes:Number(ra.size_bytes),mimeType:ra.mime_type,blob:download.data});
+              if(download.error)throw new Error('Could not download attachment “'+(ra.file_name||'file')+'”: '+download.error.message);
+              const downloaded={id:ra.client_id||('a-'+ra.id),name:ra.file_name,type:(ra.file_name.split('.').pop()||'FILE').toUpperCase(),size:formatFileSize(ra.size_bytes),sizeBytes:Number(ra.size_bytes),mimeType:ra.mime_type,blob:download.data};
+              if(localAttachment)Object.assign(localAttachment,downloaded);else n.attachments.push(downloaded);
             }
           }
           suppressDeleteDetection=true;state.notes=merged;
@@ -617,7 +619,7 @@
           const localLabelIds=new Set(state.labels.map(x=>x.id));
           for(const r of freshLabels){if(r.client_id&&!r.deleted_at&&!localLabelIds.has(r.client_id))state.labels.push({id:r.client_id,name:r.name,colour:r.colour||'olive',updatedAt:r.updated_at});}
           await saveState();suppressDeleteDetection=false;syncStatus='synced';
-        }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';}
+        }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';showToast('Sync failed. Open Settings for details.');}
         finally{syncInProgress=false;if(currentView==='settings')renderMain();}
       }
       async function deleteDatabaseState(key) {
@@ -796,9 +798,13 @@
         });
       }
 
+      function attachmentSyncFingerprint(note) {
+        return JSON.stringify((note && note.attachments || []).map(a => ({ id:a.id, name:a.name || a.fileName || '', type:a.type || '', sizeBytes:Number(a.sizeBytes || 0), mimeType:a.mimeType || '' })).sort((a,b)=>String(a.id).localeCompare(String(b.id))));
+      }
+
       function saveState() {
         let snapshot;
-        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));const now=new Date().toISOString();snapshot.syncMeta=snapshot.syncMeta||{};for(const k of ['deletedNoteIds','deletedFolderIds','deletedLabelIds','deletedAttachmentIds'])snapshot.syncMeta[k]=snapshot.syncMeta[k]||[];const present=new Set(snapshot.notes.map(n=>n.id));for(const oldNote of (lastSavedState.notes||[])){if(!present.has(oldNote.id)&&!snapshot.syncMeta.deletedNoteIds.includes(oldNote.id))snapshot.syncMeta.deletedNoteIds.push(oldNote.id);const current=snapshot.notes.find(n=>n.id===oldNote.id);const currentAtt=new Set((current&&current.attachments||[]).map(a=>a.id));for(const att of (oldNote.attachments||[]))if(!currentAtt.has(att.id)&&!snapshot.syncMeta.deletedAttachmentIds.some(x=>x.noteId===oldNote.id&&x.attachmentId===att.id))snapshot.syncMeta.deletedAttachmentIds.push({noteId:oldNote.id,attachmentId:att.id});}for(const kind of ['folders','labels']){const before=new Map((lastSavedState[kind]||[]).map(x=>[x.id,x]));const after=new Set((snapshot[kind]||[]).map(x=>x.id));const tombKey=kind==='folders'?'deletedFolderIds':'deletedLabelIds';for(const x of (lastSavedState[kind]||[]))if(!after.has(x.id)&&!snapshot.syncMeta[tombKey].includes(x.id))snapshot.syncMeta[tombKey].push(x.id);for(const x of (snapshot[kind]||[])){const oldItem=before.get(x.id);if(oldItem&&JSON.stringify(oldItem)!==JSON.stringify(x))x.updatedAt=now;}}for(const n of snapshot.notes){const old=prev.get(n.id);if(!old||JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})){n.updatedAt=now;const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}state.syncMeta=snapshot.syncMeta;} }
+        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));const now=new Date().toISOString();snapshot.syncMeta=snapshot.syncMeta||{};for(const k of ['deletedNoteIds','deletedFolderIds','deletedLabelIds','deletedAttachmentIds'])snapshot.syncMeta[k]=snapshot.syncMeta[k]||[];const present=new Set(snapshot.notes.map(n=>n.id));for(const oldNote of (lastSavedState.notes||[])){if(!present.has(oldNote.id)&&!snapshot.syncMeta.deletedNoteIds.includes(oldNote.id))snapshot.syncMeta.deletedNoteIds.push(oldNote.id);const current=snapshot.notes.find(n=>n.id===oldNote.id);const currentAtt=new Set((current&&current.attachments||[]).map(a=>a.id));for(const att of (oldNote.attachments||[]))if(!currentAtt.has(att.id)&&!snapshot.syncMeta.deletedAttachmentIds.some(x=>x.noteId===oldNote.id&&x.attachmentId===att.id))snapshot.syncMeta.deletedAttachmentIds.push({noteId:oldNote.id,attachmentId:att.id});}for(const kind of ['folders','labels']){const before=new Map((lastSavedState[kind]||[]).map(x=>[x.id,x]));const after=new Set((snapshot[kind]||[]).map(x=>x.id));const tombKey=kind==='folders'?'deletedFolderIds':'deletedLabelIds';for(const x of (lastSavedState[kind]||[]))if(!after.has(x.id)&&!snapshot.syncMeta[tombKey].includes(x.id))snapshot.syncMeta[tombKey].push(x.id);for(const x of (snapshot[kind]||[])){const oldItem=before.get(x.id);if(oldItem&&JSON.stringify(oldItem)!==JSON.stringify(x))x.updatedAt=now;}}for(const n of snapshot.notes){const old=prev.get(n.id);if(!old||JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})||attachmentSyncFingerprint(old)!==attachmentSyncFingerprint(n)){n.updatedAt=now;const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}state.syncMeta=snapshot.syncMeta;} }
         catch (error) {
           console.error('Could not prepare data for IndexedDB:', error);
           showToast('Could not prepare local data for saving');
@@ -2693,6 +2699,8 @@
       window.addEventListener('online',()=>{retryPendingLinkMetadata();queueCloudSync(250);});
       window.addEventListener('focus',()=>queueCloudSync(250));
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')queueCloudSync(250);});
+      // Keep already-open devices in step with changes made elsewhere. Background tabs do not poll.
+      setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)queueCloudSync(150);},30000);
 
       // PWA install prompt (Chrome/Edge); iOS users can use Share > Add to Home Screen.
       window.addEventListener('beforeinstallprompt', event => {
