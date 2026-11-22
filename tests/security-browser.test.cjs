@@ -232,7 +232,7 @@ test('meta CSP protects the signed-out app and permits local Blob preview resour
     const policy = await page.evaluate(() => {
       const meta = document.head.querySelector('meta[http-equiv="Content-Security-Policy"]');
       const directives = Object.fromEntries((meta?.content || '').split(';').map(part => {
-        const [name, ...values] = part.trim().split(/\\s+/);
+        const [name, ...values] = part.trim().split(/\s+/);
         return [name, values];
       }));
       return {
