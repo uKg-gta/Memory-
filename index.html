@@ -13,6 +13,7 @@
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <script src="./vendor/purify.min.js"></script>
   <script src="./note-sanitizer.js"></script>
+  <script src="./note-sync-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -522,7 +523,7 @@
       let activeStorageKey='primary';
       let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,realtimeChannel=null,syncRequested=false,realtimeSyncTimer=null;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
-      function noteSyncFingerprint(n){return JSON.stringify({title:n.title||'',bodyHtml:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,order:Number(n.order||0),folderId:n.folderId||'',archived:!!n.archived,trashed:!!n.trashed});}
+      function noteSyncFingerprint(n){return MemorySyncCore.fingerprintNote(n,sanitizeNoteHtml);}
       function queueCloudSync(delay=100,source='local'){if(!authUser||!supabaseClient||!syncReady)return;if(source==='realtime'){clearTimeout(realtimeSyncTimer);realtimeSyncTimer=setTimeout(()=>queueCloudSync(100,'realtime-run'),350);return;}if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
       async function subscribeToAccountChanges(userId){
         if(realtimeChannel){await supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}
@@ -837,7 +838,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       }
 
       function attachmentSyncFingerprint(note) {
-        return JSON.stringify((note && note.attachments || []).map(a => ({ id:a.id, name:a.name || a.fileName || '', type:a.type || '', sizeBytes:Number(a.sizeBytes || 0), mimeType:a.mimeType || '' })).sort((a,b)=>String(a.id).localeCompare(String(b.id))));
+        return MemorySyncCore.fingerprintAttachments(note);
       }
 
       function saveState() {
