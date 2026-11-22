@@ -553,6 +553,41 @@
         return { theme: 'light', folders: [], labels: [], notes: [] };
       }
 
+      // IndexedDB is the primary local database. A one-time legacy localStorage
+      // migration keeps data from the earlier prototype available.
+      const DB_NAME = 'MemoryPersonalNotes';
+      const DB_VERSION = 2;
+      const DB_STORE = 'appState';
+      let dbPromise = null;
+      let persistenceQueue = Promise.resolve();
+      let editorReturnFocus = null, editorReturnNoteId = null, drawerReturnFocus = null, confirmReturnFocus = null, previewReturnFocus = null;
+
+      function openDatabase() {
+        if (dbPromise) return dbPromise;
+        dbPromise = new Promise((resolve, reject) => {
+          if (!('indexedDB' in window)) {
+            reject(new Error('IndexedDB is unavailable in this browser context.'));
+            return;
+          }
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+          request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE, { keyPath: 'key' });
+            if (request.oldVersion < 2 && db.objectStoreNames.contains(DB_STORE)) request.transaction.objectStore(DB_STORE).clear();
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error('Could not open local database.'));
+          request.onblocked = () => reject(new Error('The local database is blocked by another open Memory tab.'));
+        });
+        return dbPromise;
+      }
+
+      function cloneData(value) {
+        if (typeof structuredClone === 'function') return structuredClone(value);
+        // Older-browser fallback. Blob attachments require structuredClone support.
+        return JSON.parse(JSON.stringify(value));
+      }
+
       function normalizeState(data) {
         data.theme = data.theme === 'dark' ? 'dark' : 'light';
         data.folders = Array.isArray(data.folders) ? data.folders : [];
