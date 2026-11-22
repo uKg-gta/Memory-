@@ -38,3 +38,9 @@ test('offline, initial-sync-pending and failed-sync states retain read-only prot
   assert.match(html, /syncStatus === 'error' \? 'Cloud sync needs attention/);
   assert.match(html, /Initial cloud sync required · tap Sync to enable editing/);
 });
+
+test('manual sync disables duplicate starts before awaiting the active-draft save', () => {
+  const syncStart = html.indexOf('async function syncCloudNotes()');
+  const preflight = html.slice(syncStart, html.indexOf('const syncConflictIds', syncStart));
+  assert.ok(preflight.indexOf('syncInProgress = true;') < preflight.indexOf('await saveState()'));
+});
