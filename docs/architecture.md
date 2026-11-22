@@ -92,3 +92,17 @@ Browser-side metadata fetching can fail when a target site does not allow cross-
 - Validate imported backup data before writing it to local storage.
 - Treat note content and imported files as untrusted data; sanitize note HTML at the editor and sync boundaries.
 - Keep HTML attachment previews sandboxed so embedded content cannot access the parent application.
+
+
+## Issue 4 live verification addendum — 2026-11-22
+
+- All five application data tables (notes, folders, labels, note_labels, and attachments) have RLS enabled with authenticated ownership policies.
+- The anon role has no table privileges on those five tables. The authenticated role has only SELECT, INSERT, UPDATE, and DELETE; TRUNCATE, REFERENCES, and TRIGGER privileges were revoked. RLS remains the row-level ownership boundary.
+- The live supabase_realtime publication includes notes, folders, and labels. Every client subscription has a user_id filter and refreshes from authoritative rows.
+- The live publication membership and effective table privileges were checked after the November 22, 2026 migrations. This catalog inspection does not substitute for authenticated cross-account RLS integration tests.
+
+The current Storage bucket is private. Its per-bucket file-size limit and MIME allowlist are unset; do not assume the UI enforces an upload size/type policy. Define and enforce an explicit product limit before production rollout.
+
+The current HTML document does not yet define a Content Security Policy. Review and deploy an appropriate CSP through the hosting layer before production; GitHub Pages does not provide arbitrary per-response security headers.
+
+Live Google OAuth, authenticated cross-account RLS attempts, real attachment lifecycle, interruption/recovery, and end-to-end multi-tab Realtime delivery remain unverified. The app remains a prototype until those acceptance tests and security hardening are complete.
