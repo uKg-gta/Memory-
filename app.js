@@ -182,9 +182,7 @@
             editingNoteId=null;editorDraft=null;clearTimeout(autoSaveTimer);
             closeAttachmentMenu({ restoreFocus: false });
             if (attachmentRenameTargetId) cancelAttachmentRename(false);
-            closeAttachmentMenu({ restoreFocus: false });
-          if (attachmentRenameTargetId) cancelAttachmentRename(false);
-          document.getElementById('editor-overlay').classList.add('hidden');
+            document.getElementById('editor-overlay').classList.add('hidden');
             currentView='home';activeFolderId=null;activeLabelId=null;searchQuery='';
             selectionMode=false;selectedIds.clear();
             lastSavedState=cloneData(state);suppressDeleteDetection=true;await saveState();suppressDeleteDetection=false;
@@ -1178,6 +1176,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           if (!saved) throw new Error('Cloud data was erased, but the empty local workspace could not be saved. Reload Memory to finish local cleanup.');
 
           editingNoteId = null; editorDraft = null; clearTimeout(autoSaveTimer);
+          closeAttachmentMenu({ restoreFocus: false });
+          if (attachmentRenameTargetId) cancelAttachmentRename(false);
           document.getElementById('editor-overlay').classList.add('hidden');
           currentView = 'home'; activeFolderId = null; activeLabelId = null; searchQuery = '';
           selectionMode = false; selectedIds.clear();
@@ -2380,6 +2380,13 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         const status = document.createElement('p');
         status.className = 'max-w-md text-sm text-muted p-6 text-center';
         status.setAttribute('role', 'status');
+        status.style.position = 'absolute';
+        status.style.zIndex = '1';
+        status.style.left = '0';
+        status.style.right = '0';
+        status.style.top = '0';
+        status.style.pointerEvents = 'none';
+        stage.style.position = 'relative';
         status.textContent = navigator.onLine ? 'Loading…' : "You're offline. Link previews need a connection.";
         stage.append(status);
         if (!navigator.onLine) {
@@ -2446,7 +2453,6 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           element.onerror = failed;
         }
 
-        element.hidden = true;
         stage.append(element);
         element.src = classification.src;
         document.getElementById('file-preview-close').focus();
