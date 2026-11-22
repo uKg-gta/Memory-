@@ -35,9 +35,16 @@ PWA installation and service workers require localhost or HTTPS. Offline testing
 
 Browser-side metadata fetching can fail when a target site does not allow cross-origin requests. The URL must be saved immediately regardless. Metadata retrieval should fail gracefully and retry when connectivity returns. Do not promise that every website title can be fetched automatically.
 
-## Future cloud phase
+## Account and cloud sync
 
-Supabase authentication, database, file storage, and cross-device sync are intentionally postponed. Before adding sync, define identity mapping, conflict resolution, attachment upload strategy, deletion propagation, and offline queue semantics. Use only the dedicated Memory Supabase project; never alter LifeOS resources.
+- Supabase Auth provides Google sign-in and session restoration. The browser uses the publishable key only; never ship a service-role or secret key.
+- Use only the dedicated Memory Supabase project; never alter LifeOS resources.
+- IndexedDB remains the local offline store. Local workspaces are keyed by account ID so signing into another account on the same browser does not silently expose or upload the previous account's notes.
+- Cloud records use stable client IDs to map the app's local string IDs to database UUID primary keys.
+- Sync includes notes, folders, labels, note-label relationships, attachment metadata, and attachment bytes in the private `memory-attachments` bucket.
+- Reads are paginated. Local/cloud records merge by update timestamp; permanent deletions propagate with tombstones. Online/focus/visibility events retry pending sync.
+- Attachments remain in IndexedDB locally and are uploaded/downloaded through authenticated Storage operations.
+- Real browser testing is still required for concurrent edits, quota failures, auth expiry, OAuth redirects, storage upload/download, restore and cross-device consistency. Do not claim production readiness until those tests pass.
 
 ## Security and privacy
 
