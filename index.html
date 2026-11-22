@@ -14,6 +14,7 @@
   <script src="./vendor/purify.min.js"></script>
   <script src="./note-sanitizer.js"></script>
   <script src="./note-sync-core.js"></script>
+  <script src="./note-storage.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -773,32 +774,11 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
 
       // IndexedDB is the primary local database. A one-time legacy localStorage
       // migration keeps data from the earlier prototype available.
-      const DB_NAME = 'MemoryPersonalNotes';
-      const DB_VERSION = 2;
-      const DB_STORE = 'appState';
-      let dbPromise = null;
+      const noteStorage = MemoryNoteStorage.create(window.indexedDB);
       let persistenceQueue = Promise.resolve();
       let editorReturnFocus = null, editorReturnNoteId = null, drawerReturnFocus = null, confirmReturnFocus = null, previewReturnFocus = null;
 
-      function openDatabase() {
-        if (dbPromise) return dbPromise;
-        dbPromise = new Promise((resolve, reject) => {
-          if (!('indexedDB' in window)) {
-            reject(new Error('IndexedDB is unavailable in this browser context.'));
-            return;
-          }
-          const request = indexedDB.open(DB_NAME, DB_VERSION);
-          request.onupgradeneeded = () => {
-            const db = request.result;
-            if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE, { keyPath: 'key' });
-            if (request.oldVersion < 2 && db.objectStoreNames.contains(DB_STORE)) request.transaction.objectStore(DB_STORE).clear();
-          };
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error || new Error('Could not open local database.'));
-          request.onblocked = () => reject(new Error('The local database is blocked by another open Memory tab.'));
-        });
-        return dbPromise;
-      }
+
 
       function cloneData(value) {
         if (typeof structuredClone === 'function') return structuredClone(value);
@@ -828,13 +808,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       }
 
       async function readDatabaseState(key = 'primary') {
-        const db = await openDatabase();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction(DB_STORE, 'readonly');
-          const request = tx.objectStore(DB_STORE).get(key);
-          request.onsuccess = () => resolve(request.result ? request.result.value : null);
-          request.onerror = () => reject(request.error || new Error('Could not read local data.'));
-        });
+        return noteStorage.read(key);
       }
 
       function attachmentSyncFingerprint(note) {
@@ -850,14 +824,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           return Promise.resolve(false);
         }
         persistenceQueue = persistenceQueue.catch(() => {}).then(async () => {
-          const db = await openDatabase();
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction(DB_STORE, 'readwrite');
-            tx.objectStore(DB_STORE).put({ key: activeStorageKey, value: snapshot, updatedAt: Date.now() });
-            tx.oncomplete = resolve;
-            tx.onerror = () => reject(tx.error || new Error('Could not save local data.'));
-            tx.onabort = () => reject(tx.error || new Error('Local save was interrupted.'));
-          });
+          await noteStorage.write(activeStorageKey, snapshot);
           lastSavedState=cloneData(snapshot);if(authUser&&syncReady&&!suppressQueueCloudSync)queueCloudSync();
           return true;
         }).catch(error => {
