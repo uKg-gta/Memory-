@@ -55,7 +55,7 @@ The uploaded source archive is retained as a convenient snapshot; the individual
 - HTML, CSS, and JavaScript prototype
 - IndexedDB for local notes and attachment data
 - Progressive Web App manifest and service worker
-- Supabase Auth and the Memory cloud database provide account access and initial note-content sync. Local IndexedDB remains the offline source on each device.
+- Supabase Auth and the Memory cloud database provide account access and sync for notes, folders, labels, relationships, and attachments. Local IndexedDB remains the offline source on each device.
 
 ## Running locally
 
