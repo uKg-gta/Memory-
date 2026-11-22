@@ -279,6 +279,7 @@
           </button>
         </div>
 
+        <button id="sync-now-btn" data-sync-trigger type="button" class="px-3 py-2 rounded-xl border border-muted bg-elevated hover:bg-surface text-xs font-medium text-main shrink-0 inline-flex items-center gap-1.5" aria-label="Sync notes with cloud" title="Sync notes with cloud"><i data-lucide="refresh-cw" data-sync-icon class="w-4 h-4"></i><span data-sync-label>Sync</span></button>
         <!-- Theme Switch -->
         <button id="theme-toggle-btn" type="button" class="p-2 rounded-xl border border-muted bg-elevated hover:bg-surface text-main shrink-0" aria-label="Toggle light or dark mode" title="Switch theme">
           <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
@@ -474,9 +475,10 @@
           </div>
         </div>
 
-        <button id="editor-done-btn" type="button" class="px-4 py-2 rounded-xl btn-olive text-xs font-medium">
-          Done
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button id="editor-sync-now-btn" data-sync-trigger type="button" class="px-2.5 py-2 rounded-xl border border-muted text-xs font-medium inline-flex items-center gap-1.5" aria-label="Sync notes with cloud" title="Sync notes with cloud"><i data-lucide="refresh-cw" data-sync-icon class="w-3.5 h-3.5"></i><span data-sync-label>Sync</span></button>
+          <button id="editor-done-btn" type="button" class="px-4 py-2 rounded-xl btn-olive text-xs font-medium">Done</button>
+        </div>
       </div>
     </div>
   </div>
@@ -527,7 +529,7 @@
         : null;
       const accountAuth = MemoryNoteAuth.create(supabaseClient, () => window.location.origin + window.location.pathname);
       const realtimeManager = MemoryRealtime.create(supabaseClient, {
-        onChange: () => queueCloudSync(100, 'realtime'),
+        onChange: () => { cloudChangesAvailable = true; updateSyncButton(); },
         onStatus: (status, detail, error) => {
           if (status === 'disconnected') {
             console.warn('Memory realtime subscription issue:', detail, error || '');
@@ -541,10 +543,9 @@
       });
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,authTransitionGeneration=0,authTransitionPending=false,syncStatus='idle',syncError='',realtimeStatus='connecting',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null,syncIdleResolvers=[];
+      let authUser=null,authReady=false,authTransitionGeneration=0,authTransitionPending=false,syncStatus='idle',syncError='',realtimeStatus='connecting',syncInProgress=false,syncStartedWritable=false,hasSuccessfulSync=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncRequested=false,cloudChangesAvailable=false,activeSyncEditorDrafts=null,syncIdleResolvers=[];
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function noteSyncFingerprint(n){return MemorySyncCore.fingerprintNote(n,sanitizeNoteHtml);}
-      function queueCloudSync(delay=100,source='local'){if(!authUser||!supabaseClient||!syncReady)return;if(source==='realtime'){clearTimeout(realtimeSyncTimer);realtimeSyncTimer=setTimeout(()=>queueCloudSync(100,'realtime-run'),350);return;}if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
       async function subscribeToAccountChanges(userId){
         if(!userId||!supabaseClient)return;
         await realtimeManager.subscribe(userId);
@@ -558,10 +559,113 @@
         if(!syncInProgress)return Promise.resolve();
         return new Promise(resolve=>syncIdleResolvers.push(resolve));
       }
+      function syncEditorDraftFingerprint(note) { return noteSyncFingerprint(note) + '|' + attachmentSyncFingerprint(note); }
+      function captureOpenEditorDraft() {
+        if (!editorDraft) return null;
+        editorDraft.title = document.getElementById('editor-title').value;
+        editorDraft.bodyHtml = captureEditorBodyHtml();
+        return cloneData(editorDraft);
+      }
+      function registerEditorForActiveSync() {
+        if (!syncInProgress || !activeSyncEditorDrafts || !editorDraft) return;
+        const snapshot = captureOpenEditorDraft();
+        const existing = activeSyncEditorDrafts.get(snapshot.id);
+        if (existing) existing.open = true;
+        else activeSyncEditorDrafts.set(snapshot.id, { baseline: cloneData(snapshot), current: cloneData(snapshot), dirtyAtStart: false, open: true });
+      }
+      function hydrateOpenEditorFromNote(note) {
+        if (!note || !editorDraft || editorDraft.id !== note.id) return;
+        const focusedId = document.activeElement && document.activeElement.id;
+        editorDraft = cloneData(note);
+        document.getElementById('editor-title').value = editorDraft.title || '';
+        document.getElementById('editor-body').innerHTML = sanitizeNoteHtml(editorDraft.bodyHtml || '');
+        document.getElementById('editor-dialog-title').textContent = editorDraft.title.trim() || 'Untitled note';
+        applyEditorVisuals(); renderEditorChecklist(); renderEditorLinks(); renderEditorAttachments(); renderEditorMoreMenu();
+        if (focusedId === 'editor-title') document.getElementById('editor-title').focus();
+        else if (focusedId === 'editor-body') document.getElementById('editor-body').focus();
+      }
+      async function reconcileEditorDraftsAfterSync(drafts, conflictIds) {
+        if (!drafts || !drafts.size) return;
+        let changedState = false;
+        for (const [noteId, record] of drafts) {
+          const isOpen = !!(editorDraft && editorDraft.id === noteId && !document.getElementById('editor-overlay').classList.contains('hidden'));
+          const current = isOpen ? captureOpenEditorDraft() : record.current;
+          if (!current) continue;
+          const changedDuringSync = syncEditorDraftFingerprint(current) !== syncEditorDraftFingerprint(record.baseline);
+          if (changedDuringSync) {
+            let preserved = cloneData(current);
+            if (conflictIds.has(noteId)) {
+              const conflictTitle = 'Conflict copy — ' + (record.baseline.title || 'Untitled note');
+              const expected = { ...record.baseline, title: conflictTitle };
+              let conflict = state.notes.find(note => note.id !== noteId && note.title === conflictTitle && syncEditorDraftFingerprint(note) === syncEditorDraftFingerprint(expected));
+              if (!conflict) {
+                conflict = { ...cloneData(record.baseline), id: uid('n-conflict'), title: conflictTitle, createdAt: Date.now(), updatedAt: new Date().toISOString() };
+                state.notes.push(conflict);
+              }
+              preserved.id = conflict.id;
+              preserved.title = 'Conflict copy — ' + (current.title || 'Untitled note');
+              preserved.createdAt = conflict.createdAt;
+              preserved.updatedAt = new Date().toISOString();
+              const index = state.notes.findIndex(note => note.id === conflict.id);
+              if (index >= 0) state.notes[index] = cloneData(preserved); else state.notes.push(cloneData(preserved));
+              state.syncMeta = state.syncMeta || {};
+              state.syncMeta.pendingNoteIds = Array.isArray(state.syncMeta.pendingNoteIds) ? state.syncMeta.pendingNoteIds : [];
+              if (!state.syncMeta.pendingNoteIds.includes(preserved.id)) state.syncMeta.pendingNoteIds.push(preserved.id);
+              if (isOpen) {
+                editorDraft = cloneData(preserved); editingNoteId = preserved.id;
+                document.getElementById('editor-title').value = preserved.title;
+                document.getElementById('editor-body').innerHTML = sanitizeNoteHtml(preserved.bodyHtml || '');
+                document.getElementById('editor-dialog-title').textContent = preserved.title;
+                renderEditorChecklist(); renderEditorLinks(); renderEditorAttachments(); applyEditorVisuals(); renderEditorMoreMenu();
+              }
+              showToast('Your edits were preserved as a conflict copy. The cloud version remains available.');
+            } else {
+              preserved.updatedAt = new Date().toISOString();
+              const index = state.notes.findIndex(note => note.id === noteId);
+              if (index >= 0) state.notes[index] = cloneData(preserved); else state.notes.push(cloneData(preserved));
+              state.syncMeta = state.syncMeta || {};
+              state.syncMeta.pendingNoteIds = Array.isArray(state.syncMeta.pendingNoteIds) ? state.syncMeta.pendingNoteIds : [];
+              if (!state.syncMeta.pendingNoteIds.includes(noteId)) state.syncMeta.pendingNoteIds.push(noteId);
+            }
+            changedState = true;
+          } else if (syncStatus === 'synced' && isOpen && !record.dirtyAtStart) {
+            const latest = state.notes.find(note => note.id === noteId);
+            if (latest && syncEditorDraftFingerprint(latest) !== syncEditorDraftFingerprint(current)) hydrateOpenEditorFromNote(latest);
+          }
+        }
+        if (changedState) { suppressDeleteDetection = true; await saveState(); suppressDeleteDetection = false; }
+      }
+      function updateSyncButton() {
+        document.querySelectorAll('[data-sync-trigger]').forEach(button => {
+          const label = button.querySelector('[data-sync-label]');
+          const icon = button.querySelector('[data-sync-icon]');
+          button.disabled = !authUser || !syncReady || !navigator.onLine || syncInProgress;
+          button.setAttribute('aria-busy', String(syncInProgress));
+          button.title = cloudChangesAvailable ? 'Cloud changes are available. Tap to sync.' : 'Sync notes with cloud';
+          button.setAttribute('aria-label', syncInProgress ? 'Syncing notes' : 'Sync notes with cloud');
+          if (label) label.textContent = syncInProgress ? 'Syncing…' : cloudChangesAvailable ? 'Sync •' : 'Sync';
+          if (icon) icon.classList.toggle('animate-spin', syncInProgress);
+        });
+      }
       async function syncCloudNotes(){
-        if(!authUser||!supabaseClient||!syncReady||!navigator.onLine)return;
-        if(syncInProgress){syncRequested=true;return;}
-        syncRequested=false;syncInProgress=true;syncStatus='syncing';syncError='';applyReadOnlyMode();if(currentView==='settings')renderMain();
+        if(!authUser||!supabaseClient||!syncReady||!navigator.onLine||syncInProgress)return;
+        const editorDrafts = new Map();
+        activeSyncEditorDrafts = editorDrafts;
+        if (!document.getElementById('editor-overlay').classList.contains('hidden') && editorDraft) {
+          const beforePersist = captureOpenEditorDraft();
+          const persisted = state.notes.find(note => note.id === beforePersist.id);
+          const dirtyAtStart = persisted ? syncEditorDraftFingerprint(beforePersist) !== syncEditorDraftFingerprint(persisted) : true;
+          if (!isDraftEmpty()) {
+            const index = state.notes.findIndex(note => note.id === beforePersist.id);
+            if (index >= 0) state.notes[index] = cloneData(beforePersist); else state.notes.push(cloneData(beforePersist));
+            if (!await saveState()) { activeSyncEditorDrafts = null; showToast('The open note could not be saved locally. Sync was not started.'); return; }
+          }
+          editorDrafts.set(beforePersist.id, { baseline: cloneData(beforePersist), current: cloneData(beforePersist), dirtyAtStart: dirtyAtStart && isDraftEmpty(), open: true });
+        }
+        syncStartedWritable = hasSuccessfulSync && syncStatus === 'synced';
+        syncRequested=false; syncInProgress=true; syncStatus='syncing'; syncError=''; cloudChangesAvailable=false;
+        updateSyncButton(); applyReadOnlyMode(); if(currentView==='settings')renderMain();
+        const syncConflictIds = new Set();
         try{
           const userId=authUser.id;
           // Read cloud records first. Nothing on the cloud is deleted merely because this device is empty.
@@ -579,7 +683,7 @@
             document.getElementById('editor-overlay').classList.add('hidden');
             currentView='home';activeFolderId=null;activeLabelId=null;searchQuery='';
             selectionMode=false;selectedIds.clear();
-            lastSavedState=cloneData(state);suppressDeleteDetection=true;suppressQueueCloudSync=true;await saveState();suppressQueueCloudSync=false;suppressDeleteDetection=false;
+            lastSavedState=cloneData(state);suppressDeleteDetection=true;await saveState();suppressDeleteDetection=false;
           }
           const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
           const labelMap=new Map(remoteLabels.filter(x=>x.client_id&&x.client_id!==RESET_MARKER_CLIENT_ID).map(x=>[x.client_id,x]));
@@ -604,7 +708,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           const merged=[],deletedIds=syncMeta.deletedNoteIds||[];
           if(deletedIds.length){const oldRows=remoteNotes.filter(n=>deletedIds.includes(n.client_id));for(const oldNote of oldRows){const files=await supabaseClient.from('attachments').select('storage_path').eq('user_id',userId).eq('note_id',oldNote.id);if(files.error)throw files.error;if(files.data&&files.data.length){const rm=await supabaseClient.storage.from('memory-attachments').remove(files.data.map(x=>x.storage_path));if(rm.error)throw rm.error;const mark=await supabaseClient.from('attachments').update({deleted_at:new Date().toISOString()}).eq('user_id',userId).eq('note_id',oldNote.id);if(mark.error)throw mark.error;}}const q=await supabaseClient.from('notes').update({deleted_at:new Date().toISOString()}).eq('user_id',userId).in('client_id',deletedIds);if(q.error)throw q.error;}
           function remoteNoteToLocal(r,local){const f=r.folder_id?folderByUuid.get(r.folder_id):null;return {id:r.client_id,title:r.title||'',bodyHtml:sanitizeNoteHtml(r.body_html||''),checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:f?f.client_id:'',labelIds:local&&local.labelIds||[],attachments:local&&local.attachments||[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||local&&local.createdAt||Date.now(),updatedAt:r.updated_at};}
-          function addConflictCopy(local){const copy={...cloneData(local),id:uid('n-conflict'),title:'Conflict copy — '+(local.title||'Untitled note'),createdAt:Date.now(),updatedAt:new Date().toISOString()};merged.push(copy);pendingNoteIds.add(copy.id);syncRequested=true;}
+          function addConflictCopy(local){syncConflictIds.add(local.id);const copy={...cloneData(local),id:uid('n-conflict'),title:'Conflict copy — '+(local.title||'Untitled note'),createdAt:Date.now(),updatedAt:new Date().toISOString()};merged.push(copy);pendingNoteIds.add(copy.id);syncRequested=true;}
           function notePayload(n){const f=folderByClient.get(n.folderId);return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),folder_id:f?f.id:null,archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
           const noteSyncPlan=MemorySyncCore.planNoteSync(state.notes,remoteNotes,pendingNoteIds,{fingerprint:noteSyncFingerprint,remoteToLocal:remoteNoteToLocal});
           for(const item of noteSyncPlan.local){
@@ -672,9 +776,16 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           for(const r of freshFolders){if(r.client_id&&!r.deleted_at&&!localFolderIds.has(r.client_id))state.folders.push({id:r.client_id,name:r.name,updatedAt:r.updated_at});}
           const localLabelIds=new Set(state.labels.map(x=>x.id));
           for(const r of freshLabels){if(r.client_id&&!r.deleted_at&&!localLabelIds.has(r.client_id))state.labels.push({id:r.client_id,name:r.name,colour:r.colour||'olive',updatedAt:r.updated_at});}
-          suppressQueueCloudSync=true;await saveState();suppressQueueCloudSync=false;suppressDeleteDetection=false;syncStatus='synced';applyReadOnlyMode();
-        }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';showToast('Sync failed. Open Settings for details.');}
-        finally{syncInProgress=false;suppressQueueCloudSync=false;applyReadOnlyMode();if(currentView==='settings')renderMain();const idleWaiters=syncIdleResolvers.splice(0);idleWaiters.forEach(resolve=>resolve());if(syncRequested){syncRequested=false;queueCloudSync(100);}}
+          await saveState();suppressDeleteDetection=false;syncStatus='synced';hasSuccessfulSync=true;applyReadOnlyMode();updateSyncButton();
+        }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';showToast('Sync failed. Your local notes are retained. Tap Sync to retry.');}
+        finally{
+          try { await reconcileEditorDraftsAfterSync(editorDrafts, syncConflictIds); }
+          catch (draftError) { console.error('Could not reconcile the open editor after sync:', draftError); showToast('Your open note could not be reconciled automatically. Keep it open and try Sync again.'); }
+          activeSyncEditorDrafts=null; syncInProgress=false; syncStartedWritable=false;
+          applyReadOnlyMode(); updateSyncButton(); if(currentView==='settings')renderMain();
+          const idleWaiters=syncIdleResolvers.splice(0); idleWaiters.forEach(resolve=>resolve());
+          if(syncRequested){syncRequested=false;setTimeout(()=>syncCloudNotes(),100);}
+        }
       }
       async function deleteDatabaseState(key) {
         await noteStorage.remove(key);
@@ -726,11 +837,11 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           authUser = r.data.session ? r.data.session.user : null;
           if (authUser) {
             await switchAccountWorkspace(authUser);
-            syncReady = true;
+            syncReady = true; hasSuccessfulSync = false;
             await subscribeToAccountChanges(authUser.id);
             await syncCloudNotes();
           } else {
-            syncReady = false; syncStatus = 'idle';
+            syncReady = false; syncStatus = 'idle'; hasSuccessfulSync = false;
           }
           authReady = true;
           updateAuthGate();
@@ -742,8 +853,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
             if (!nextUser) {
               authTransitionPending = false;
               authReady = true;
-              syncReady = false; syncStatus = 'idle';
-              clearTimeout(syncTimer); clearTimeout(realtimeSyncTimer); syncRequested = false;
+              syncReady = false; syncStatus = 'idle'; hasSuccessfulSync = false;
+              syncRequested = false;
               realtimeStatus = 'disconnected';
               realtimeManager.close();
               updateAuthGate(); return;
@@ -751,8 +862,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
             if (changed) {
               authTransitionPending = true;
               authReady = false;
-              syncReady = false;
-              clearTimeout(syncTimer); clearTimeout(realtimeSyncTimer); syncRequested = false;
+              syncReady = false; hasSuccessfulSync = false;
+              syncRequested = false;
               realtimeStatus = 'connecting';
               realtimeManager.close();
               updateAuthGate();
@@ -765,9 +876,10 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
                 syncReady = true;
                 await subscribeToAccountChanges(nextUser.id);
                 if (!isCurrentTransition()) return;
+                await syncCloudNotes();
+                if (!isCurrentTransition()) return;
                 authTransitionPending = false;
                 authReady = true;
-                queueCloudSync(100);
                 updateAuthGate();
                 renderAll();
               }).catch(e => {
@@ -783,7 +895,6 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
             } else if (!authTransitionPending) {
               authReady = true;
               syncReady = true;
-              queueCloudSync(100);
               updateAuthGate();
             }
             if (currentView === 'settings' && authReady) renderMain();
@@ -851,7 +962,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         const storageKey = activeStorageKey;
         persistenceQueue = persistenceQueue.catch(() => {}).then(async () => {
           await noteStorage.write(storageKey, snapshot);
-          lastSavedState=cloneData(snapshot);if(authUser&&syncReady&&!suppressQueueCloudSync)queueCloudSync();
+          lastSavedState=cloneData(snapshot);
           return true;
         }).catch(error => {
           console.error('IndexedDB save failed:', error);
@@ -901,7 +1012,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         return prefix + '-' + Math.random().toString(36).slice(2, 9);
       }
 
-      function canEditCloudData() { return !!authUser && !!syncReady && navigator.onLine && syncStatus === 'synced' && !syncInProgress; }
+      function canEditCloudData() { return !!authUser && !!syncReady && navigator.onLine && (syncStatus === 'synced' || (syncInProgress && syncStartedWritable)); }
 
       function applyReadOnlyMode() {
         const readOnly = !canEditCloudData();
@@ -924,8 +1035,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         }
         document.querySelectorAll('#main-content button').forEach(btn => { btn.disabled = readOnly && !btn.matches('[data-open-folder],[data-open-label]'); });
         document.querySelectorAll('#main-content input,#main-content select,#main-content textarea').forEach(el => { if (readOnly) el.disabled = true; });
-        const syncNow = document.getElementById('sync-now-btn');
-        if (syncNow) syncNow.disabled = !navigator.onLine || syncInProgress;
+        updateSyncButton();
       }
 
       function showToast(msg) {
@@ -1521,7 +1631,6 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         resetInProgress = true;
         const wasSyncReady = syncReady;
         syncReady = false;
-        clearTimeout(syncTimer);
         try {
           await persistenceQueue.catch(() => {});
           while (syncInProgress) await new Promise(resolve => setTimeout(resolve, 50));
@@ -1583,8 +1692,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
             <div class="py-4 border-y border-muted">
               <div class="text-sm font-medium">Memory account</div>
               <div id="account-status" class="text-xs text-muted mt-1" role="status" aria-live="polite">${!authReady ? "Checking account status…" : (authUser ? "Signed in as " + escapeHtml(authUser.email || "Google account") : "Not signed in")}</div>
-              <div class="text-xs text-muted mt-1">${!authReady ? 'Checking account session…' : (authUser ? (syncStatus === 'syncing' ? 'Syncing notes…' : syncStatus === 'synced' ? 'Notes synced. Offline copies remain on this device.' : syncStatus === 'error' ? 'Sync needs attention: ' + escapeHtml(syncError) : 'Preparing secure sync…') : 'Sign in to sync notes across devices. Local notes remain on this device.')}</div>
-              ${authUser ? '<div id="realtime-status" class="text-[11px] text-muted mt-1" role="status" aria-live="polite">' + (realtimeStatus === 'connected' ? 'Live updates connected for notes, folders and labels.' : realtimeStatus === 'disconnected' ? 'Live updates disconnected; periodic refresh retries while online.' : 'Connecting to live updates…') + '</div>' : ''}
+              <div class="text-xs text-muted mt-1">${!authReady ? 'Checking account session…' : (authUser ? (syncStatus === 'syncing' ? 'Syncing notes…' : syncStatus === 'synced' ? 'Last sync completed. Tap Sync to refresh from the cloud.' : syncStatus === 'error' ? 'Sync needs attention: ' + escapeHtml(syncError) : 'Initial cloud sync is required before editing.') : 'Sign in to sync notes across devices. Local notes remain on this device.')}</div>
+              ${authUser ? '<div id="realtime-status" class="text-[11px] text-muted mt-1" role="status" aria-live="polite">' + (realtimeStatus === 'connected' ? 'Cloud change notifications connected. Tap Sync to retrieve changes.' : realtimeStatus === 'disconnected' ? 'Live updates disconnected. Tap Sync to check for cloud changes.' : 'Connecting to live updates…') + '</div>' : ''}
               ${authUser ? '<button id="sync-now-btn" type="button" class="mt-2 px-3 py-1.5 rounded-lg border border-muted text-xs hover:bg-surface">Sync now</button>' : ''}
               <button id="google-account-btn" type="button" class="mt-3 px-3.5 py-2 rounded-xl btn-olive text-xs font-medium">${authUser ? "Sign out" : "Continue with Google"}</button>
               <div class="text-[11px] text-muted mt-2">Google OAuth must first be enabled in the Memory Supabase project with your Google client ID and secret.</div>
@@ -1631,7 +1740,6 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         if (resetButton) resetButton.addEventListener('click', resetCurrentAccountData);
         document.getElementById('import-json-input').addEventListener('change', importCompleteBackup);
         document.getElementById('google-account-btn').addEventListener('click', handleGoogleAccountAction);
-        const syncNow=document.getElementById('sync-now-btn');if(syncNow)syncNow.addEventListener('click',()=>syncCloudNotes());
       }
 
       function blobToDataUrl(blob) {
@@ -2211,6 +2319,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         document.getElementById('editor-overlay').classList.remove('hidden');
         document.getElementById('editor-dialog-title').textContent = titleEl.value.trim() || 'Untitled note';
         (noteId ? titleEl : bodyEl).focus();
+        if (syncInProgress) registerEditorForActiveSync();
         applyReadOnlyMode();
         refreshIcons();
       }
@@ -2257,6 +2366,11 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
 
       function closeEditor() {
         clearTimeout(autoSaveTimer);
+        if (syncInProgress && editorDraft && activeSyncEditorDrafts) {
+          const closingDraft = captureOpenEditorDraft();
+          const record = activeSyncEditorDrafts.get(closingDraft.id);
+          if (record) { record.current = cloneData(closingDraft); record.open = false; }
+        }
         if (editorDraft && canEditCloudData()) {
           editorDraft.title = document.getElementById('editor-title').value;
           editorDraft.bodyHtml = captureEditorBodyHtml();
@@ -2678,6 +2792,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       document.getElementById('mobile-drawer-backdrop').addEventListener('click', closeMobileDrawer);
       document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
       document.getElementById('auth-gate-google-btn').addEventListener('click', handleGoogleAccountAction);
+      document.querySelectorAll('[data-sync-trigger]').forEach(button => button.addEventListener('click', () => syncCloudNotes()));
 
       const searchInput = document.getElementById('search-input');
       const clearSearchBtn = document.getElementById('clear-search-btn');
@@ -2915,13 +3030,9 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       document.getElementById('file-preview-close').addEventListener('click', closeAttachmentPreview);
       document.getElementById('file-preview-overlay').addEventListener('click', e => { if (e.target.id === 'file-preview-overlay') closeAttachmentPreview(); });
 
-      // Retry cloud refresh when connectivity returns; offline mode remains read-only.
-      window.addEventListener('online',()=>{retryPendingLinkMetadata();queueCloudSync(250);applyReadOnlyMode();});
+      // Reconnect restores availability but never starts a cloud sync automatically.
+      window.addEventListener('online',()=>{retryPendingLinkMetadata();applyReadOnlyMode();});
       window.addEventListener('offline',()=>{applyReadOnlyMode();if(currentView==='settings')renderMain();});
-      window.addEventListener('focus',()=>queueCloudSync(250));
-      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')queueCloudSync(250);});
-      // Keep already-open devices in step with changes made elsewhere. Background tabs do not poll.
-      setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)queueCloudSync(150);},30000);
 
       // PWA install prompt (Chrome/Edge); iOS users can use Share > Add to Home Screen.
       window.addEventListener('beforeinstallprompt', event => {
