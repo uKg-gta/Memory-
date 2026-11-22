@@ -2490,7 +2490,11 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         const blob = attachment.blob || attachment.fileBlob;
         if (!(blob instanceof Blob)) { showToast('This older attachment has no saved file data. Please attach the file again.'); return; }
         if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-        previewObjectUrl = URL.createObjectURL(blob);
+        const isPdf = /\.pdf$/i.test(attachment.name || '') || attachment.mimeType === 'application/pdf' || blob.type === 'application/pdf';
+        const previewBlob = isPdf && blob.type !== 'application/pdf'
+          ? new Blob([blob], { type: 'application/pdf' })
+          : blob;
+        previewObjectUrl = URL.createObjectURL(previewBlob);
         const objectUrl = previewObjectUrl;
         const generation = ++previewGeneration;
         previewReturnFocus = document.activeElement;
