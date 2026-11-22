@@ -514,17 +514,33 @@
         : null;
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncTimer=null;
+      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncTimer=null,realtimeChannel=null,syncRequested=false;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:new Date(n.updatedAt||n.createdAt||Date.now()).toISOString(),deleted_at:null};}
-      function queueCloudSync(delay=900){if(!authUser||!supabaseClient||!syncReady)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
+      function queueCloudSync(delay=100){if(!authUser||!supabaseClient||!syncReady)return;if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
+      async function subscribeToAccountChanges(userId){
+        if(realtimeChannel){await supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}
+        if(!userId||!supabaseClient)return;
+        realtimeChannel=supabaseClient.channel('memory-notes-'+userId)
+          .on('postgres_changes',{event:'*',schema:'public',table:'notes',filter:'user_id=eq.'+userId},()=>queueCloudSync(100))
+          .subscribe((status,error)=>{
+            if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+              console.warn('Memory realtime subscription issue:',status,error||'');
+              syncError='Live updates disconnected. Reconnecting…';
+            } else if(status==='SUBSCRIBED') {
+              syncError='';
+            }
+            if(currentView==='settings')renderMain();
+          });
+      }
       async function fetchAllRows(table, columns, userId) {
         const all=[]; let from=0, pageSize=500;
         while(true){const q=await supabaseClient.from(table).select(columns).eq('user_id',userId).range(from,from+pageSize-1);if(q.error)throw q.error;const batch=q.data||[];all.push(...batch);if(batch.length<pageSize)break;from+=pageSize;}
         return all;
       }
       async function syncCloudNotes(){
-        if(!authUser||!supabaseClient||syncInProgress||!syncReady||!navigator.onLine)return;
-        syncInProgress=true;syncStatus='syncing';syncError='';if(currentView==='settings')renderMain();
+        if(!authUser||!supabaseClient||!syncReady||!navigator.onLine)return;
+        if(syncInProgress){syncRequested=true;return;}
+        syncRequested=false;syncInProgress=true;syncStatus='syncing';syncError='';if(currentView==='settings')renderMain();
         try{
           const userId=authUser.id;
           // Read cloud records first. Nothing on the cloud is deleted merely because this device is empty.
@@ -632,7 +648,7 @@
           for(const r of freshLabels){if(r.client_id&&!r.deleted_at&&!localLabelIds.has(r.client_id))state.labels.push({id:r.client_id,name:r.name,colour:r.colour||'olive',updatedAt:r.updated_at});}
           await saveState();suppressDeleteDetection=false;syncStatus='synced';
         }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';showToast('Sync failed. Open Settings for details.');}
-        finally{syncInProgress=false;if(currentView==='settings')renderMain();}
+        finally{syncInProgress=false;if(currentView==='settings')renderMain();if(syncRequested){syncRequested=false;queueCloudSync(100);}}
       }
       async function deleteDatabaseState(key) {
         const db = await openDatabase();
@@ -686,6 +702,7 @@
           if (authUser) {
             await switchAccountWorkspace(authUser);
             syncReady = true;
+            await subscribeToAccountChanges(authUser.id);
             await syncCloudNotes();
           } else {
             syncReady = false; syncStatus = 'idle';
@@ -698,17 +715,19 @@
             authUser = nextUser;
             authReady = true;
             if (!nextUser) {
-              syncReady = false; syncStatus = 'idle'; updateAuthGate(); return;
+              syncReady = false; syncStatus = 'idle';
+              if(realtimeChannel){supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}
+              updateAuthGate(); return;
             }
             if (changed) {
-              switchAccountWorkspace(nextUser).then(() => {
-                syncReady = true; queueCloudSync(200); updateAuthGate(); renderAll();
+              switchAccountWorkspace(nextUser).then(async () => {
+                syncReady = true; await subscribeToAccountChanges(nextUser.id); queueCloudSync(100); updateAuthGate(); renderAll();
               }).catch(e => {
                 console.error('Could not switch local account workspace:', e);
                 syncStatus = 'error'; syncError = 'Could not load this account’s local notes'; updateAuthGate();
               });
             } else {
-              syncReady = true; queueCloudSync(200); updateAuthGate();
+              syncReady = true; subscribeToAccountChanges(nextUser.id); queueCloudSync(100); updateAuthGate();
             }
             if (currentView === 'settings') renderMain();
           });
@@ -831,7 +850,7 @@
             tx.onerror = () => reject(tx.error || new Error('Could not save local data.'));
             tx.onabort = () => reject(tx.error || new Error('Local save was interrupted.'));
           });
-          lastSavedState=cloneData(snapshot);if(authUser&&syncReady&&!syncInProgress)queueCloudSync();
+          lastSavedState=cloneData(snapshot);if(authUser&&syncReady)queueCloudSync();
           return true;
         }).catch(error => {
           console.error('IndexedDB save failed:', error);
