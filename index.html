@@ -665,14 +665,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         finally{syncInProgress=false;suppressQueueCloudSync=false;applyReadOnlyMode();if(currentView==='settings')renderMain();if(syncRequested){syncRequested=false;queueCloudSync(100);}}
       }
       async function deleteDatabaseState(key) {
-        const db = await openDatabase();
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction(DB_STORE, 'readwrite');
-          tx.objectStore(DB_STORE).delete(key);
-          tx.oncomplete = resolve;
-          tx.onerror = () => reject(tx.error || new Error('Could not clear old local data.'));
-          tx.onabort = () => reject(tx.error || new Error('Local cleanup was interrupted.'));
-        });
+        await noteStorage.remove(key);
       }
 
       function updateAuthGate() {
