@@ -2024,25 +2024,20 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         section.classList.remove('hidden');
         list.innerHTML = links.map(lk => `
           <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">
-            <div class="min-w-0">
-              <div class="text-xs font-medium text-main truncate">${escapeHtml(lk.title || lk.domain)}</div>
-              <div class="text-[11px] text-muted truncate">${escapeHtml(lk.domain)}${lk.metadataPending ? ' · title pending' : ''}</div>
-            </div>
+            <button type="button" data-open-link="${lk.id}" aria-label="Preview ${escapeHtml(lk.title || lk.domain)} in Memory" class="min-w-0 flex-1 text-left py-1 hover:opacity-80" style="min-height:44px">
+              <span class="block text-xs font-medium text-main truncate">${escapeHtml(lk.title || lk.domain)}</span>
+              <span class="block text-[11px] text-muted truncate">${escapeHtml(lk.domain)}${lk.metadataPending ? ' · title pending' : ''}</span>
+            </button>
             <div class="flex items-center gap-1 shrink-0">
               <button type="button" data-edit-link="${lk.id}" aria-label="Edit title for ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Edit displayed title"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-              <button type="button" data-open-link="${lk.id}" aria-label="Open ${escapeHtml(lk.title || lk.domain)} in Memory" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Open in Memory">
-                <i data-lucide="globe" class="w-3.5 h-3.5"></i>
-              </button>
-              <button type="button" data-remove-link="${lk.id}" aria-label="Remove ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link">
-                <i data-lucide="x" class="w-3.5 h-3.5"></i>
-              </button>
+              <button type="button" data-remove-link="${lk.id}" aria-label="Remove ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
             </div>
           </div>
         `).join('');
 
         list.querySelectorAll('[data-open-link]').forEach(btn => btn.addEventListener('click', () => {
           const link = (editorDraft.links || []).find(l => l.id === btn.getAttribute('data-open-link'));
-          if (link) openWebLinkPreview(link);
+          if (link) openLinkPreview(link);
         }));
         list.querySelectorAll('[data-edit-link]').forEach(btn => btn.addEventListener('click', () => {
           const link = (editorDraft.links || []).find(l => l.id === btn.getAttribute('data-edit-link'));
@@ -2094,20 +2089,145 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       }
 
       let previewObjectUrl = null;
-      function openWebLinkPreview(link) {
-        if (!link || !/^https?:\/\//i.test(link.url || '')) return;
+      let previewGeneration = 0;
+
+      function showLinkPreviewMessage(body, message) {
+        const status = document.createElement('p');
+        status.className = 'max-w-md text-sm text-muted p-6 text-center';
+        status.setAttribute('role', 'status');
+        status.textContent = message;
+        body.replaceChildren(status);
+      }
+
+      function openLinkPreview(link) {
+        const classification = MemoryLinkPreview.classifyLink(link && link.url);
+        const generation = ++previewGeneration;
+        if (previewObjectUrl) {
+          URL.revokeObjectURL(previewObjectUrl);
+          previewObjectUrl = null;
+        }
         previewReturnFocus = document.activeElement;
-        document.getElementById('file-preview-title').textContent = link.title || link.domain || 'Website';
-        document.getElementById('file-preview-download').classList.add('hidden');
+        document.getElementById('file-preview-title').textContent = (link && (link.title || link.domain)) || 'Link preview';
+        const download = document.getElementById('file-preview-download');
+        download.classList.add('hidden');
+        download.removeAttribute('href');
+        download.removeAttribute('download');
+
         const external = document.getElementById('file-preview-external');
-        external.href = link.url;
+        external.target = '_blank';
+        external.rel = 'noopener noreferrer';
+        external.classList.toggle('hidden', !classification.externalUrl);
+        if (classification.externalUrl) external.href = classification.externalUrl;
+        else external.removeAttribute('href');
+
         const body = document.getElementById('file-preview-body');
-        body.innerHTML = '<div class="w-full h-full flex items-center justify-center p-6 text-center"><p class="max-w-md text-sm text-muted">In-app website previews are disabled by the app security policy. Use “Open externally” to view this link in your browser.</p></div>';
+        body.replaceChildren();
         document.getElementById('file-preview-overlay').classList.remove('hidden');
+
+        if (classification.kind === 'invalid') {
+          showLinkPreviewMessage(body, "This link can't be previewed or opened.");
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+        if (classification.kind === 'insecure') {
+          showLinkPreviewMessage(body, "This link uses http, so it can't be previewed here. Use Open externally.");
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+        if (classification.kind === 'unsupported-file') {
+          showLinkPreviewMessage(body, "This file type can't be previewed in the browser. Use Open externally.");
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+
+        let stage = body;
+        if (classification.kind === 'page') {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'w-full h-full min-h-0 flex flex-col';
+          const hint = document.createElement('div');
+          hint.className = 'px-3 py-2 text-xs text-muted border-b border-muted bg-surface shrink-0';
+          hint.textContent = "Some sites don't allow previews. If this looks blank, use Open externally.";
+          stage = document.createElement('div');
+          stage.className = 'relative flex-1 min-h-0';
+          wrapper.append(hint, stage);
+          body.replaceChildren(wrapper);
+        }
+
+        const status = document.createElement('p');
+        status.className = 'max-w-md text-sm text-muted p-6 text-center';
+        status.setAttribute('role', 'status');
+        status.textContent = navigator.onLine ? 'Loading…' : "You're offline. Link previews need a connection.";
+        stage.append(status);
+        if (!navigator.onLine) {
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+
+        let sameOrigin = false;
+        try { sameOrigin = new URL(classification.src).origin === window.location.origin; } catch (_) {}
+        const loaded = element => {
+          if (generation !== previewGeneration) return;
+          status.remove();
+          element.hidden = false;
+        };
+        const failed = () => {
+          if (generation !== previewGeneration) return;
+          status.textContent = "Preview couldn't be loaded. Use Open externally.";
+        };
+
+        let element;
+        if (classification.kind === 'image') {
+          element = document.createElement('img');
+          element.alt = (link && (link.title || link.domain)) || 'Linked image';
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'max-w-full max-h-full object-contain p-3';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        } else if (classification.kind === 'pdf') {
+          element = document.createElement('iframe');
+          element.title = (link && (link.title || link.domain)) || 'PDF preview';
+          element.setAttribute('sandbox', sameOrigin ? 'allow-scripts' : 'allow-scripts allow-same-origin');
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'w-full h-full border-0 bg-white';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        } else if (classification.kind === 'video' || classification.kind === 'audio') {
+          element = document.createElement(classification.kind);
+          element.controls = true;
+          element.setAttribute('playsinline', '');
+          if (classification.kind === 'video') element.playsInline = true;
+          element.className = classification.kind === 'video' ? 'max-w-full max-h-full' : 'w-full max-w-xl p-4';
+          element.addEventListener('loadeddata', () => loaded(element), { once: true });
+          element.addEventListener('canplay', () => loaded(element), { once: true });
+          element.addEventListener('error', failed, { once: true });
+        } else if (classification.kind === 'video-embed') {
+          element = document.createElement('iframe');
+          element.title = (link && (link.title || link.domain)) || 'Video preview';
+          element.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+          element.setAttribute('allow', 'fullscreen; picture-in-picture');
+          element.setAttribute('allowfullscreen', '');
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'w-full h-full border-0 bg-black';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        } else {
+          element = document.createElement('iframe');
+          element.title = (link && (link.title || link.domain)) || 'Website preview';
+          element.setAttribute('sandbox', sameOrigin
+            ? 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox'
+            : 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'w-full h-full border-0 bg-white';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        }
+
+        element.hidden = true;
+        stage.append(element);
+        element.src = classification.src;
         document.getElementById('file-preview-close').focus();
       }
 
-      let previewGeneration = 0;
       function openAttachmentPreview(attachmentId) {
         const attachment = (editorDraft && editorDraft.attachments || []).find(a => a.id === attachmentId);
         if (!attachment) return;
@@ -2131,7 +2251,11 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         download.href = objectUrl;
         download.download = attachment.name;
         download.classList.remove('hidden');
-        document.getElementById('file-preview-external').href = objectUrl;
+        const external = document.getElementById('file-preview-external');
+        external.classList.remove('hidden');
+        external.target = '_blank';
+        external.rel = 'noopener noreferrer';
+        external.href = objectUrl;
 
         const body = document.getElementById('file-preview-body');
         body.replaceChildren();
@@ -2185,7 +2309,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           fallback.className = 'p-8 text-center max-w-md';
           const heading = document.createElement('div');
           heading.className = 'text-sm font-medium';
-          heading.textContent = 'Preview isn\'t available for this file type.';
+          heading.textContent = 'Preview isn’t available for this file type.';
           const detail = document.createElement('div');
           detail.className = 'text-xs text-muted mt-2';
           detail.textContent = 'Download the file or open it in another application.';
