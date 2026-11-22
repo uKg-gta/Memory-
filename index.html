@@ -583,10 +583,10 @@
               const path=userId+'/'+n.id+'/'+att.id;
               const existing=attachmentMap.get(att.id);
               const blob=att.blob||att.fileBlob;
-              if(blob instanceof Blob){
+              if(blob instanceof Blob&&(!existing||existing.deleted_at)){
                 const up=await supabaseClient.storage.from('memory-attachments').upload(path,blob,{upsert:true,contentType:att.mimeType||blob.type||'application/octet-stream'});
                 if(up.error)throw up.error;
-                if(!existing||existing.deleted_at){const meta=await supabaseClient.from('attachments').upsert({user_id:userId,note_id:nr.id,client_id:att.id,storage_path:path,file_name:att.name||att.fileName||'Attachment',mime_type:att.mimeType||blob.type||'application/octet-stream',size_bytes:blob.size,deleted_at:null},{onConflict:'user_id,client_id'});if(meta.error)throw meta.error;}
+                const meta=await supabaseClient.from('attachments').upsert({user_id:userId,note_id:nr.id,client_id:att.id,storage_path:path,file_name:att.name||att.fileName||'Attachment',mime_type:att.mimeType||blob.type||'application/octet-stream',size_bytes:blob.size,deleted_at:null},{onConflict:'user_id,client_id'});if(meta.error)throw meta.error;
               }
             }
             for(const ra of remoteAttachments.filter(a=>a.note_id===nr.id&&!a.deleted_at)){
