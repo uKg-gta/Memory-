@@ -24,3 +24,13 @@
 - Added Supabase browser client configuration using the publishable key and Google sign-in/sign-out controls in Settings.
 - Added account-owned Supabase tables and a private attachment bucket with row-level security.
 - Cloud note synchronisation is not included in this batch; local-first persistence remains in place.
+
+
+## 2026-11-22 — Initial account-backed note sync
+
+- Added authenticated, user-scoped note fetch and upsert using the Memory Supabase project and the existing publishable browser key.
+- Added local/cloud merge by client note ID and update timestamps; a blank cloud account does not replace local notes.
+- Added soft-delete tombstones for permanently deleted notes and a manual Sync now action in Settings.
+- Retained IndexedDB as the local offline copy; cloud sync retries when connectivity returns.
+- Folders, labels, attachment metadata, and attachment binaries remain local-only. This milestone needs live multi-device acceptance testing before production readiness can be claimed.
+- Refreshed the PWA service-worker cache version.
