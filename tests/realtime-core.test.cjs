@@ -124,7 +124,7 @@ test('a stale in-flight subscription cannot replace a newer account channel', as
     },
     removeChannel(channel) {
       removed.push(channel);
-      if (channel.name.includes('slow-account')) return new Promise(resolve => { releaseRemoval = resolve; });
+      if (!releaseRemoval) return new Promise(resolve => { releaseRemoval = resolve; });
       return Promise.resolve('ok');
     }
   };
