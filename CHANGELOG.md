@@ -15,3 +15,12 @@
 - Made note cards keyboard-operable and added accessible names to checklist and link controls.
 - Bumped the service-worker cache version so updated app assets can be installed.
 - Added folder renaming through the folder options menu. Renaming preserves the folder ID and its notes.
+
+
+## 2026-11-22 — Empty account foundation
+
+- Replaced seeded sample content with a clean empty workspace and removed the sample-reset control.
+- Bumped IndexedDB to v2 to clear prior prototype/sample records once.
+- Added Supabase browser client configuration using the publishable key and Google sign-in/sign-out controls in Settings.
+- Added account-owned Supabase tables and a private attachment bucket with row-level security.
+- Cloud note synchronisation is not included in this batch; local-first persistence remains in place.
