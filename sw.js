@@ -1,12 +1,14 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v17';
+const VERSION = 'memory-pwa-v18';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
   './index.html',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './vendor/purify.min.js',
+  './note-sanitizer.js'
 ];
 const EXTERNAL_ASSETS = [
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
