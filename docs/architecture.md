@@ -54,10 +54,26 @@ Required app-shell files include:
 - `icon-512.png`
 - `vendor/purify.min.js`
 - `note-sanitizer.js`
+- `note-sync-core.js`
+- `note-storage.js`
+- `note-state-core.js`
+- `note-auth-core.js`
 
 PWA installation and service workers require localhost or HTTPS. The service worker preserves an offline app shell and may cache only the exact external CDN URLs explicitly listed in its allowlist. Supabase API requests, Supabase Storage downloads/uploads, and all other non-allowlisted external requests must bypass Cache Storage.
 
 Navigation responses replace the cached app shell only when the network response is successful. Offline testing should include first-load caching, reload while offline, navigation fallback, and updates after a new deployment.
+
+## Application modules and automated tests
+
+The current vanilla-JavaScript entry point remains `index.html`; the following browser modules isolate independently testable responsibilities:
+
+- `note-auth-core.js` wraps Supabase session restoration, auth-state subscriptions, Google OAuth initiation, and sign-out.
+- `note-storage.js` owns the IndexedDB open/read/write/delete lifecycle for account-keyed workspace snapshots.
+- `note-state-core.js` owns default state, structured cloning, and state normalization.
+- `note-sync-core.js` owns note/attachment fingerprints and deterministic local-versus-remote sync planning, including conflict classification.
+- `note-sanitizer.js` owns the DOMPurify HTML boundary.
+
+The CI workflow runs Node unit tests for state normalization, sync planning, and auth delegation, plus Playwright browser tests for IndexedDB persistence (including Blob attachments and account separation), service-worker caching, sanitization, and responsive layout. These tests validate isolated modules and browser infrastructure; they do **not** simulate a live Google OAuth provider or a real Supabase project. OAuth redirects, session expiry/refresh, real RLS enforcement, live concurrent edits, and full attachment transfer still require configured staging credentials and manual/acceptance testing.
 
 ## External link metadata
 
