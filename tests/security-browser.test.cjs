@@ -174,6 +174,7 @@ test('universal attachment preview routes formats to safe in-app renderers', () 
   const preview = fs.readFileSync(path.join(__dirname, '..', 'note-attachment-preview.js'), 'utf8');
   assert.match(html, /note-attachment-preview\.js/);
   assert.match(html, /MemoryAttachmentPreview\.render/);
+  assert.match(html, /new Blob\(\[blob\], \{ type: 'application\/pdf' \}\)/);
   assert.match(html, /previewGeneration/);
   assert.doesNotMatch(html, /PDF preview is disabled for safety/);
   assert.match(preview, /sandbox','allow-scripts allow-same-origin'/);
