@@ -34,3 +34,8 @@
 - Retained IndexedDB as the local offline copy; cloud sync retries when connectivity returns.
 - Folders, labels, attachment metadata, and attachment binaries remain local-only. This milestone needs live multi-device acceptance testing before production readiness can be claimed.
 - Refreshed the PWA service-worker cache version.
+
+- Extended sync to folders, labels, note-label relationships, attachment metadata, and private attachment binaries.
+- Added account-isolated local workspaces so notes from one signed-in account are not silently uploaded to another account on a shared browser.
+- Added paginated cloud reads, focus/visibility sync retries, and attachment cleanup for permanently deleted notes.
+- Pinned and precached Supabase JS 2.119.2; refreshed service-worker cache.
