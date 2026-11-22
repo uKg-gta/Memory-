@@ -19,6 +19,7 @@
   <script src="./note-auth-core.js"></script>
   <script src="./note-editor-core.js"></script>
   <script src="./note-attachment-policy.js"></script>
+  <script src="./note-attachment-preview.js"></script>
   <script src="./note-realtime-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -2482,6 +2483,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         document.getElementById('file-preview-close').focus();
       }
 
+      let previewGeneration = 0;
       function openAttachmentPreview(attachmentId) {
         const attachment = (editorDraft && editorDraft.attachments || []).find(a => a.id === attachmentId);
         if (!attachment) return;
@@ -2489,38 +2491,41 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         if (!(blob instanceof Blob)) { showToast('This older attachment has no saved file data. Please attach the file again.'); return; }
         if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
         previewObjectUrl = URL.createObjectURL(blob);
-        const mime = attachment.mimeType || blob.type || 'application/octet-stream';
+        const objectUrl = previewObjectUrl;
+        const generation = ++previewGeneration;
         previewReturnFocus = document.activeElement;
         document.getElementById('file-preview-title').textContent = attachment.name;
         const download = document.getElementById('file-preview-download');
-        download.href = previewObjectUrl; download.download = attachment.name;
+        download.href = objectUrl; download.download = attachment.name;
         download.classList.remove('hidden');
-        const external = document.getElementById('file-preview-external'); external.href = previewObjectUrl;
+        document.getElementById('file-preview-external').href = objectUrl;
         const body = document.getElementById('file-preview-body');
-        const extension = (attachment.name.split('.').pop() || '').toLowerCase();
-        if (['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'].includes(mime)) {
-          body.innerHTML = `<img src="${previewObjectUrl}" alt="${escapeHtml(attachment.name)}" class="max-w-full max-h-full object-contain p-3" />`;
-        } else if (mime === 'application/pdf' || attachment.type === 'PDF' || extension === 'pdf') {
-          body.innerHTML = '<div class="p-8 text-center max-w-md"><i data-lucide="file-text" class="w-10 h-10 mx-auto mb-3 text-muted"></i><div class="text-sm font-medium">PDF preview is disabled for safety.</div><div class="text-xs text-muted mt-2">Download the file to open it in your PDF reader.</div></div>';
-        } else if (mime === 'text/html' || ['html','htm'].includes(extension)) {
-          body.innerHTML = `<iframe title="${escapeHtml(attachment.name)}" src="${previewObjectUrl}" sandbox="" referrerpolicy="no-referrer" class="w-full h-full border-0 bg-white"></iframe>`;
-        } else if (mime.startsWith('text/') || ['txt','md','csv','json','xml','js','css'].includes(extension)) {
-          const textPreviewUrl = previewObjectUrl;
-          blob.text().then(text => { if (previewObjectUrl === textPreviewUrl) { body.innerHTML = '<pre class="w-full h-full overflow-auto p-4 text-xs whitespace-pre-wrap break-words text-main"></pre>'; body.querySelector('pre').textContent = text; } });
-        } else if (mime.startsWith('audio/')) {
-          body.innerHTML = `<audio controls class="w-full max-w-xl p-4" src="${previewObjectUrl}">Audio playback is not supported.</audio>`;
-        } else if (mime.startsWith('video/')) {
-          body.innerHTML = `<video controls playsinline class="max-w-full max-h-full" src="${previewObjectUrl}">Video playback is not supported.</video>`;
-        } else {
-          body.innerHTML = `<div class="p-8 text-center max-w-md"><i data-lucide="file" class="w-10 h-10 mx-auto mb-3 text-muted"></i><div class="text-sm font-medium">Preview isn't available for this file type.</div><div class="text-xs text-muted mt-2">Download the file or open it in another application.</div></div>`;
-        }
+        body.replaceChildren();
+        const stage = document.createElement('div');
+        stage.className = 'w-full h-full min-h-0 flex items-center justify-center overflow-auto';
         document.getElementById('file-preview-overlay').classList.remove('hidden');
         document.getElementById('file-preview-close').focus();
+        MemoryAttachmentPreview.render({
+          container: stage,
+          blob,
+          name: attachment.name,
+          mimeType: attachment.mimeType || blob.type || 'application/octet-stream',
+          objectUrl
+        }).then(() => {
+          if (generation === previewGeneration && previewObjectUrl === objectUrl) body.replaceChildren(...stage.childNodes);
+        }).catch(error => {
+          if (generation !== previewGeneration || previewObjectUrl !== objectUrl) return;
+          const message = document.createElement('p');
+          message.className = 'p-6 text-sm text-muted';
+          message.textContent = 'Preview could not be generated: ' + (error && error.message ? error.message : 'Unknown file error');
+          body.replaceChildren(message);
+        });
         refreshIcons();
       }
       function closeAttachmentPreview() {
+        previewGeneration++;
         document.getElementById('file-preview-overlay').classList.add('hidden');
-        document.getElementById('file-preview-body').innerHTML = '';
+        document.getElementById('file-preview-body').replaceChildren();
         document.getElementById('file-preview-download').classList.remove('hidden');
         if (previewReturnFocus && previewReturnFocus.focus) previewReturnFocus.focus();
         previewReturnFocus = null;
