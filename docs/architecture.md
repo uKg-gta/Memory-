@@ -60,6 +60,7 @@ Required app-shell files include:
 - `note-state-core.js`
 - `note-auth-core.js`
 - `note-editor-core.js`
+- `note-attachment-policy.js`
 - `note-realtime-core.js`
 
 PWA installation and service workers require localhost or HTTPS. The service worker preserves an offline app shell and may cache only the exact external CDN URLs explicitly listed in its allowlist. Supabase API requests, Supabase Storage downloads/uploads, and all other non-allowlisted external requests must bypass Cache Storage.
