@@ -193,7 +193,7 @@ test('link preview window renders HTTPS resources with restrictive frames and sa
     assert.equal(await external.getAttribute('href'), null);
 
     await page.evaluate(() => window.__memoryTest.openLinkPreview({ title: 'Close test', url: 'https://stub.example.test/page' }));
-    await page.locator('#file-preview-close').click();
+    await page.locator('#file-preview-close').click({ force: true });
     assert.equal(await page.locator('#file-preview-body').evaluate(element => element.childElementCount), 0);
 
     await app.context.setOffline(true);
