@@ -182,7 +182,7 @@
       const player=el('video','max-w-full max-h-full'); player.controls=true; player.playsInline=true; player.preload='metadata'; player.src=objectUrl; wrap.append(player); return;
     }
     if (kind==='PDF document') {
-      const frame=el('iframe','w-full h-full border-0 bg-white'); frame.title=name+' PDF preview'; frame.src=objectUrl; frame.setAttribute('sandbox','allow-scripts'); frame.referrerPolicy='no-referrer'; container.replaceChildren(frame); return;
+      const frame=el('iframe','w-full h-full border-0 bg-white'); frame.title=name+' PDF preview'; frame.src=objectUrl; frame.setAttribute('sandbox','allow-scripts allow-same-origin'); frame.referrerPolicy='no-referrer'; container.replaceChildren(frame); return;
     }
     if (['docx','xlsx','pptx'].includes(ext)) {
       try { const zip=await readZip(blob); await officePreview(container,blob,kind,zip); }
