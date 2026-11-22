@@ -94,10 +94,16 @@ async function openApp(browser) {
   });
   await page.goto(base + '/', { waitUntil: 'load' });
   await page.waitForFunction(() => !!window.__memoryTest && window.__memoryTest.isReady());
-  // This harness tests the app UI without a real sign-in; keep the signed-out
-  // gate from covering the preview/menu controls while retaining read-only mode.
-  await page.addStyleTag({ content: 'body.auth-locked #app { display: flex !important; } body.auth-locked #auth-gate { display: none !important; }' });
-  await page.evaluate(() => document.body.classList.remove('auth-locked'));
+  // This harness tests the app UI without a real sign-in. Use a dedicated
+  // test-mode class so hiding the auth gate does not depend on auth-locked.
+  // The app remains in its normal read-only state until a test explicitly
+  // enables writing through __memoryTest.setWritable(true).
+  await page.addStyleTag({ content: 'body.auth-test-mode #app { display: flex !important; } body.auth-test-mode #auth-gate { display: none !important; }' });
+  await page.evaluate(() => {
+    document.body.classList.remove('auth-locked');
+    document.body.classList.add('auth-test-mode');
+    document.getElementById('auth-gate').classList.add('hidden');
+  });
   return { server, context, page };
 }
 
@@ -193,7 +199,8 @@ test('link preview window renders HTTPS resources with restrictive frames and sa
     assert.equal(await external.getAttribute('href'), null);
 
     await page.evaluate(() => window.__memoryTest.openLinkPreview({ title: 'Close test', url: 'https://stub.example.test/page' }));
-    await page.locator('#file-preview-close').click({ force: true });
+    await page.locator('#file-preview-close').click();
+    await page.locator('#file-preview-overlay').waitFor({ state: 'hidden' });
     assert.equal(await page.locator('#file-preview-body').evaluate(element => element.childElementCount), 0);
 
     await app.context.setOffline(true);
