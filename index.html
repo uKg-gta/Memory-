@@ -572,7 +572,6 @@
           }
           const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
           const labelMap=new Map(remoteLabels.filter(x=>x.client_id&&x.client_id!==RESET_MARKER_CLIENT_ID).map(x=>[x.client_id,x]));
-          const noteMap=new Map(remoteNotes.filter(x=>x.client_id).map(x=>[x.client_id,x]));
           const uploadsNotes=[],noteExpectedVersions=new Map(),conflictedNoteIds=new Set();
           const syncMeta=state.syncMeta=state.syncMeta||{};
           const pendingFolderIds=new Set(syncMeta.pendingFolderIds||[]),pendingLabelIds=new Set(syncMeta.pendingLabelIds||[]),pendingNoteIds=new Set(syncMeta.pendingNoteIds||[]);
@@ -591,14 +590,21 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           const folderByClient=new Map(freshFolders.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
           const labelByClient=new Map(freshLabels.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
           const folderByUuid=new Map(freshFolders.filter(x=>!x.deleted_at).map(x=>[x.id,x]));
-          const localNoteById=new Map(state.notes.map(n=>[n.id,n]));
           const merged=[],deletedIds=syncMeta.deletedNoteIds||[];
           if(deletedIds.length){const oldRows=remoteNotes.filter(n=>deletedIds.includes(n.client_id));for(const oldNote of oldRows){const files=await supabaseClient.from('attachments').select('storage_path').eq('user_id',userId).eq('note_id',oldNote.id);if(files.error)throw files.error;if(files.data&&files.data.length){const rm=await supabaseClient.storage.from('memory-attachments').remove(files.data.map(x=>x.storage_path));if(rm.error)throw rm.error;const mark=await supabaseClient.from('attachments').update({deleted_at:new Date().toISOString()}).eq('user_id',userId).eq('note_id',oldNote.id);if(mark.error)throw mark.error;}}const q=await supabaseClient.from('notes').update({deleted_at:new Date().toISOString()}).eq('user_id',userId).in('client_id',deletedIds);if(q.error)throw q.error;}
           function remoteNoteToLocal(r,local){const f=r.folder_id?folderByUuid.get(r.folder_id):null;return {id:r.client_id,title:r.title||'',bodyHtml:sanitizeNoteHtml(r.body_html||''),checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:f?f.client_id:'',labelIds:local&&local.labelIds||[],attachments:local&&local.attachments||[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||local&&local.createdAt||Date.now(),updatedAt:r.updated_at};}
           function addConflictCopy(local){const copy={...cloneData(local),id:uid('n-conflict'),title:'Conflict copy — '+(local.title||'Untitled note'),createdAt:Date.now(),updatedAt:new Date().toISOString()};merged.push(copy);pendingNoteIds.add(copy.id);syncRequested=true;}
           function notePayload(n){const f=folderByClient.get(n.folderId);return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),folder_id:f?f.id:null,archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
-          for(const n of state.notes){const r=noteMap.get(n.id),isPending=pendingNoteIds.has(n.id);if(r&&r.deleted_at){if(isPending){addConflictCopy(n);pendingNoteIds.delete(n.id);}continue;}if(r&&isPending){noteExpectedVersions.set(n.id,r.updated_at);uploadsNotes.push(notePayload(n));merged.push(n);}else if(r){const remoteLocal=remoteNoteToLocal(r,n);merged.push(remoteLocal);if(noteSyncFingerprint(n)!==noteSyncFingerprint(remoteLocal))addConflictCopy(n);}else{uploadsNotes.push(notePayload(n));merged.push(n);}}
-          for(const r of remoteNotes){if(!r.client_id||localNoteById.has(r.client_id)||r.deleted_at)continue;merged.push(remoteNoteToLocal(r,null));}
+          const noteSyncPlan=MemorySyncCore.planNoteSync(state.notes,remoteNotes,pendingNoteIds,{fingerprint:noteSyncFingerprint,remoteToLocal:remoteNoteToLocal});
+          for(const item of noteSyncPlan.local){
+            const n=item.local;
+            if(item.action==='conflict-deleted'){addConflictCopy(n);pendingNoteIds.delete(n.id);}
+            else if(item.action==='skip-deleted'){continue;}
+            else if(item.action==='update-existing'){noteExpectedVersions.set(n.id,item.expectedUpdatedAt);uploadsNotes.push(notePayload(n));merged.push(n);}
+            else if(item.action==='use-remote'){merged.push(item.remoteLocal);if(item.localChanged)addConflictCopy(n);}
+            else if(item.action==='insert-local'){uploadsNotes.push(notePayload(n));merged.push(n);}
+          }
+          for(const remote of noteSyncPlan.remoteOnly)merged.push(remoteNoteToLocal(remote,null));
           // Compare-and-swap uses the server's last-seen version; device clocks never decide which edit wins.
           for(const payload of uploadsNotes){const expected=noteExpectedVersions.get(payload.client_id);if(expected){const q=await supabaseClient.from('notes').update(payload).eq('user_id',userId).eq('client_id',payload.client_id).eq('updated_at',expected).select('id,updated_at');if(q.error)throw q.error;if(!q.data||q.data.length===0){conflictedNoteIds.add(payload.client_id);syncRequested=true;}else uploadedNoteIds.add(payload.client_id);}else{const q=await supabaseClient.from('notes').insert(payload).select('id,updated_at');if(q.error){if(q.error.code==='23505'){conflictedNoteIds.add(payload.client_id);syncRequested=true;}else throw q.error;}else uploadedNoteIds.add(payload.client_id);}}
           if(conflictedNoteIds.size){const conflictRows=await fetchAllRows('notes','id,user_id,client_id,title,body_html,checklist,links,colour,pinned,sort_order,folder_id,archived,trashed,created_at,updated_at,deleted_at',userId);for(const clientId of conflictedNoteIds){const remote=conflictRows.find(x=>x.client_id===clientId&&!x.deleted_at),index=merged.findIndex(x=>x.id===clientId);if(!remote||index<0)continue;const localCopy=merged[index];merged[index]=remoteNoteToLocal(remote,localCopy);addConflictCopy(localCopy);pendingNoteIds.delete(clientId);}}
