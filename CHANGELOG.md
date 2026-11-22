@@ -131,3 +131,13 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Added unit coverage for the exact limit, oversized files, invalid sizes, and unrestricted file types; wired it into CI.
 - Bumped the service-worker shell cache to v30 and precached the new policy module.
 - The live Storage bucket remains private. Its bucket-level size ceiling and the project-wide ceiling must be set/verified in Supabase Storage; app-side validation is not a substitute for server enforcement.
+
+
+## 2026-11-23 — Universal in-app attachment previews
+
+- Added a local-only preview engine for image, audio, video, PDF, text/source, SVG, font, DOCX, XLSX, PPTX, and ZIP attachments.
+- Added local OOXML text/table/slide extraction for modern Word, Excel, and PowerPoint files; macros and embedded scripts are not executed.
+- Added a safe metadata, readable-text, and hexadecimal inspector as the in-app fallback for unsupported, legacy, or opaque formats, so accepted files no longer end at a “preview unavailable” screen.
+- Kept uploaded file bytes inside the browser during preview; no external document-viewer service is used.
+- Added the preview module to the offline app shell, updated Tailwind scanning, and added browser regression coverage for text, DOCX extraction, PDF sandboxing, and binary fallback.
+- Known renderer limits: legacy DOC/XLS/PPT, RAR/7z archives, and 3D model formats currently use the inspector fallback rather than full document/archive rendering or a 3D viewport. Audio/video playback depends on browser codec support.
