@@ -290,7 +290,7 @@ test('attachment menu supports positioning, keyboard access, preview, download, 
     await page.locator('#attachment-rename-input').fill('bad\\name.pdf');
     await page.locator('#attachment-rename-save').click();
     assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('cannot contain'));
-    await page.locator('#attachment-rename-input').evaluate(input => { input.value = 'bad\\u0001name.pdf'; });
+    await page.locator('#attachment-rename-input').evaluate(input => { input.value = 'bad' + String.fromCharCode(1) + 'name.pdf'; });
     await page.locator('#attachment-rename-save').click();
     assert.ok((await page.locator('#attachment-rename-error').innerText()).includes('cannot contain'));
     await page.locator('#attachment-rename-input').fill('Report.PdF');
