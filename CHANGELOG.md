@@ -125,7 +125,7 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 
 ## 2026-11-23 — Attachment upload policy
 
-- Approved a 50 MiB maximum per attachment, with all file types accepted (no MIME allowlist).
+- Approved a decimal 50 MB (50,000,000 bytes) maximum per attachment, with all file types accepted (no MIME allowlist).
 - Added a shared policy module and client-side rejection for files above the limit.
 - Added a second size guard immediately before Supabase Storage upload so imported/restored or otherwise injected Blobs cannot bypass the UI check.
 - Added unit coverage for the exact limit, oversized files, invalid sizes, and unrestricted file types; wired it into CI.
