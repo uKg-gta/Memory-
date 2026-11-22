@@ -136,7 +136,7 @@ test('404 and 500 navigation responses never replace the app shell', async () =>
 
 test('offline navigation falls back to the install-time app shell', async () => {
   const worker = createWorker(async () => { throw new Error('offline'); });
-  const shell = await worker.caches.open('memory-pwa-v25-shell');
+  const shell = await worker.caches.open('memory-pwa-v26-shell');
   await shell.put('./index.html', response('cached app shell'));
   const result = await dispatch(worker, {
     method: 'GET', mode: 'navigate',
