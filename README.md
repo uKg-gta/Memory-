@@ -88,3 +88,12 @@ Do not commit personal notes, exported backups, attachment data, credentials, AP
 ---
 
 Built as a personal project.
+
+
+## Account foundation (November 2026)
+
+- Memory now starts with an empty local workspace. The IndexedDB v2 upgrade clears previous prototype/demo records once; legacy prototype localStorage data is no longer imported.
+- The dedicated Memory Supabase project has account-owned notes, folders, labels, note-label relationships, attachment metadata, and a private attachment bucket protected by row-level security.
+- The browser uses only the Supabase publishable key. No service-role or secret key is shipped to the client.
+- Google sign-in/sign-out controls are available in Settings. Google OAuth must be enabled in Supabase Auth with a Google OAuth web client and the deployed app URL added to the redirect allowlist.
+- This stage connects account authentication only. Notes remain stored locally; cloud sync and conflict handling are a separate stage.
