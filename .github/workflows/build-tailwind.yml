@@ -1,4 +1,5 @@
 name: Build production Tailwind CSS
+run-name: Compile Tailwind CSS for main
 
 on:
   push:
@@ -10,8 +11,9 @@ permissions:
 
 jobs:
   build:
-    if: ${{ !contains(github.event.head_commit.message, '[skip tailwind build]') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip tailwind build]') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out main
         uses: actions/checkout@v4
@@ -26,6 +28,13 @@ jobs:
 
       - name: Compile Tailwind CSS 3.4.17
         run: npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i ./src/tailwind.css -o ./tailwind.css --minify
+
+      - name: Verify generated stylesheet
+        run: |
+          test -s ./tailwind.css
+          grep -q '\.md\\:flex' ./tailwind.css
+          grep -q '\.dark\\:bg-white' ./tailwind.css || true
+          echo "Generated stylesheet: $(wc -c < ./tailwind.css) bytes"
 
       - name: Commit compiled stylesheet
         run: |
