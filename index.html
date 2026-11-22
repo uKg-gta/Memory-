@@ -658,6 +658,7 @@
         syncError = '';
         cloudChangesAvailable = false;
         updateSyncButton();
+        updateAuthGate();
         applyReadOnlyMode();
         if (currentView === 'settings') renderMain();
 
@@ -818,7 +819,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         const locked = !authReady || !authUser;
         document.body.classList.toggle('auth-locked', locked);
         gate.classList.toggle('hidden', !locked);
-        if (!authReady) message.textContent = 'Checking your account…';
+        if (!authReady && authUser && syncInProgress) message.textContent = 'Syncing your notes…';
+        else if (!authReady) message.textContent = 'Checking your account…';
         else if (syncStatus === 'error') message.textContent = 'Could not verify your account. Check your connection and try again.';
         else message.textContent = 'Sign in with Google to access and write your notes.';
         button.disabled = !supabaseClient || !authReady;
