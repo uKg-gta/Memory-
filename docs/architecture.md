@@ -51,6 +51,8 @@ Backup and restore behaviour must be tested against the current account model. A
 Required app-shell files include:
 
 - `index.html`
+- `app.js`
+- `tailwind.css`
 - `manifest.webmanifest`
 - `sw.js`
 - `icon-192.png`
