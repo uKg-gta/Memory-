@@ -168,3 +168,15 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Restricted link metadata fetching to same-origin URLs and replaced remote website iframes with an explicit open-externally fallback.
 - Documented meta-CSP limitations: it cannot enforce `frame-ancestors`, `report-uri`, or `sandbox`.
 - Audited the root-level `note-attachment-preview.js`: it is the superseded universal preview engine, is not loaded or cached, and is contradicted by the changelog's restored built-in viewer. Removed the stale duplicate; the built-in preview implementation in `app.js` is the single source of truth.
+
+
+## 2026-11-23 — HTTPS link previews and attachment options
+
+- Added strict URL classification for HTTPS image, PDF, video, audio, generic page, YouTube/Vimeo embed, unsupported Office/archive, insecure HTTP, and invalid links.
+- Opened supported links in Memory's preview window with a visible embedding hint, safe sandbox attributes, loading/error/offline states, and an Open externally option. Invalid links receive no external anchor.
+- Replaced the attachment kebab action with a floating Preview / Download / Rename / Remove menu, including keyboard navigation, viewport-aware placement, read-only access, and validated in-app renaming.
+- Made attachment renames update the existing attachment metadata row's file_name field through the existing client sync path; no schema or policy changes were made.
+- Loosened only frame-src, img-src, and media-src for HTTPS previews. connect-src remains restricted to same-origin and Supabase.
+- Changed non-allowlisted external service-worker requests to native browser pass-through, kept Supabase traffic explicitly network-only, added note-link-preview.js to the shell, and bumped the PWA cache to v36.
+- Added Node classifier/sync coverage and Playwright coverage for HTTPS previews, CSP, attachment menu keyboard/read-only/rename/remove flows, and viewport placement.
+- Known limits: pages that block framing may appear blank; Office/archive links are not previewed; link titles still are not fetched from external websites.

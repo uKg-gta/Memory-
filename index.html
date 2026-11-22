@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src blob:; connect-src 'self' https://ncqypupxbywojcvwfgvg.supabase.co wss://ncqypupxbywojcvwfgvg.supabase.co; frame-src blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
-  <!-- style-src 'unsafe-inline' is retained only for the existing inline style block and style attributes. -->
+  <!-- GitHub Pages meta CSP: external preview resources are limited to HTTPS frames, images, and media. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src blob: https:; connect-src 'self' https://ncqypupxbywojcvwfgvg.supabase.co wss://ncqypupxbywojcvwfgvg.supabase.co; frame-src blob: https:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
+  <!-- style-src 'unsafe-inline' is retained only for existing inline styles; external previews use frame/img/media sources, not connect-src. -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#F4EFE5" />
@@ -22,6 +23,7 @@
   <script src="./note-editor-core.js"></script>
   <script src="./note-attachment-policy.js"></script>
   <script src="./note-realtime-core.js"></script>
+  <script src="./note-link-preview.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -214,7 +216,13 @@
       background: var(--border-strong);
       border-radius: 9999px;
     }
-  </style>
+      #editor-links-list [data-open-link]:focus-visible,
+    #attachment-menu [role="menuitem"]:focus-visible {
+      outline: 2px solid var(--text-main);
+      outline-offset: 2px;
+    }
+    #attachment-menu [role="menuitem"]:disabled { opacity: .45; cursor: not-allowed; }
+</style>
 </head>
 <body class="min-h-screen bg-main text-main auth-locked">
   <section id="auth-gate" class="fixed inset-0 z-[100] hidden items-center justify-center bg-main px-5 py-8" aria-labelledby="auth-gate-title">
@@ -504,12 +512,29 @@
     </div>
   </div>
 
+  <!-- In-app attachment rename dialog -->
+  <div id="attachment-rename-overlay" class="hidden fixed inset-0 z-[60] bg-black/45 p-4 flex items-center justify-center">
+    <div role="dialog" aria-modal="true" aria-labelledby="attachment-rename-title" aria-describedby="attachment-rename-description" tabindex="-1" class="w-full max-w-sm rounded-2xl bg-elevated border border-muted p-5 space-y-4" style="box-shadow: var(--shadow-modal);">
+      <div class="space-y-1.5">
+        <h3 id="attachment-rename-title" class="text-base font-semibold text-main">Rename attachment</h3>
+        <p id="attachment-rename-description" class="text-sm text-muted leading-relaxed">Choose a new file name. The file contents will not change.</p>
+      </div>
+      <label for="attachment-rename-input" class="block text-xs font-medium text-main">File name</label>
+      <input id="attachment-rename-input" type="text" maxlength="120" autocomplete="off" class="w-full rounded-xl border border-muted bg-surface px-3 py-2 text-sm text-main" />
+      <p id="attachment-rename-error" class="text-xs text-red-600 min-h-[1rem]" role="status" aria-live="polite"></p>
+      <div class="flex items-center justify-end gap-2 pt-1">
+        <button id="attachment-rename-cancel" type="button" class="px-3.5 py-2 rounded-xl border border-muted text-xs font-medium text-main hover:bg-surface">Cancel</button>
+        <button id="attachment-rename-save" type="button" class="px-3.5 py-2 rounded-xl btn-olive text-xs font-medium">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- In-app attachment preview -->
   <div id="file-preview-overlay" class="hidden fixed inset-0 z-[65] bg-black/55 p-3 md:p-6 flex items-center justify-center">
     <div role="dialog" aria-modal="true" aria-labelledby="file-preview-title" tabindex="-1" class="w-full max-w-4xl h-[88vh] rounded-2xl bg-elevated border border-muted flex flex-col overflow-hidden" style="box-shadow: var(--shadow-modal);">
       <div class="px-4 py-3 border-b border-muted flex items-center gap-3">
         <div id="file-preview-title" class="text-sm font-medium truncate flex-1">Attachment preview</div>
-        <a id="file-preview-download" class="px-3 py-1.5 rounded-lg border border-muted text-xs hover:bg-surface" download>Download</a>
+        <a id="file-preview-download" class="hidden px-3 py-1.5 rounded-lg border border-muted text-xs hover:bg-surface" download>Download</a>
         <a id="file-preview-external" class="px-3 py-1.5 rounded-lg border border-muted text-xs hover:bg-surface" target="_blank" rel="noopener noreferrer">Open externally</a>
         <button id="file-preview-close" type="button" class="p-2 rounded-lg hover:bg-surface text-muted" aria-label="Close preview"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>

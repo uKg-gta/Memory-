@@ -24,7 +24,7 @@ The repository includes the current standalone web-app prototype:
 - Notes, pinning, colours, checklists, and basic formatting
 - Folders, labels, Archive, and Trash
 - Search and bulk note actions
-- Attachment and link interfaces, with supported in-app previews
+- In-app previews for supported attachments and embeddable HTTPS links, with an Open externally fallback
 - Google sign-in through the dedicated Memory Supabase project
 - Cloud sync for notes, folders, labels, note-label relationships, and private attachment files
 - Per-account IndexedDB cache for previously downloaded content
@@ -48,6 +48,7 @@ Prototype capabilities and browser/platform support still require real-device te
 - `note-auth-core.js` — Supabase Google-auth adapter
 - `note-editor-core.js` — note draft, checklist, and label model helpers
 - `note-realtime-core.js` — account-scoped Realtime subscriptions for notes, folders, and labels
+- `note-link-preview.js` — safe URL classification for in-app link previews
 - `vendor/` — locally bundled third-party browser dependencies
 - `tests/` — Node unit tests and Playwright browser integration tests
 - `docs/` — product vision, specification, and architecture

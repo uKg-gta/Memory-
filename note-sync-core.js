@@ -36,6 +36,12 @@
   }
 
 
+  function attachmentMetadataUpdate(existing, attachment) {
+    if (!existing || existing.deleted_at) return null;
+    const fileName = String((attachment && (attachment.name || attachment.fileName)) || 'Attachment');
+    return existing.file_name === fileName ? null : { file_name: fileName };
+  }
+
   function planNoteSync(localNotes, remoteNotes, pendingNoteIds, options) {
     const config = options || {};
     const fingerprint = config.fingerprint || (note => fingerprintNote(note));
@@ -70,5 +76,5 @@
     return { local, remoteOnly };
   }
 
-  return Object.freeze({ fingerprintNote, fingerprintAttachments, planNoteSync });
+  return Object.freeze({ fingerprintNote, fingerprintAttachments, attachmentMetadataUpdate, planNoteSync });
 });

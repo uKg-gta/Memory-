@@ -180,6 +180,8 @@
             const retainedTheme=state.theme==='dark'?'dark':'light';
             state=normalizeState({...getDefaultData(),theme:retainedTheme,syncMeta:{accountResetAt:resetMarker.updated_at}});
             editingNoteId=null;editorDraft=null;clearTimeout(autoSaveTimer);
+            closeAttachmentMenu({ restoreFocus: false });
+            if (attachmentRenameTargetId) cancelAttachmentRename(false);
             document.getElementById('editor-overlay').classList.add('hidden');
             currentView='home';activeFolderId=null;activeLabelId=null;searchQuery='';
             selectionMode=false;selectedIds.clear();
@@ -258,6 +260,13 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
                 const up=await supabaseClient.storage.from('memory-attachments').upload(path,blob,{upsert:true,contentType:att.mimeType||blob.type||'application/octet-stream'});
                 if(up.error)throw up.error;
                 const meta=await supabaseClient.from('attachments').upsert({user_id:userId,note_id:nr.id,client_id:att.id,storage_path:path,file_name:att.name||att.fileName||'Attachment',mime_type:att.mimeType||blob.type||'application/octet-stream',size_bytes:blob.size,deleted_at:null},{onConflict:'user_id,client_id'});if(meta.error)throw meta.error;
+              } else if(existing&&!existing.deleted_at){
+                const renamePatch=MemorySyncCore.attachmentMetadataUpdate(existing,att);
+                if(renamePatch){
+                  const metaUpdate=await supabaseClient.from('attachments').update(renamePatch).eq('user_id',userId).eq('client_id',att.id);
+                  if(metaUpdate.error)throw metaUpdate.error;
+                  Object.assign(existing,renamePatch);
+                }
               }
             }
             for(const ra of remoteAttachments.filter(a=>a.note_id===nr.id&&!a.deleted_at)){
@@ -530,12 +539,13 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           if (title) title.readOnly = readOnly;
           if (body) body.contentEditable = String(!readOnly);
           document.querySelectorAll('#editor-checklist-items input').forEach(el => { el.disabled = readOnly && el.type === 'checkbox'; el.readOnly = readOnly && el.type !== 'checkbox'; });
-          document.querySelectorAll('#editor-panel button').forEach(btn => { btn.disabled = readOnly && !btn.matches('#editor-done-btn,[data-preview-att],[data-open-link],[data-sync-trigger]'); });
+          document.querySelectorAll('#editor-panel button').forEach(btn => { btn.disabled = readOnly && !btn.matches('#editor-done-btn,[data-preview-att],[data-att-menu],[data-open-link],[data-sync-trigger]'); });
           const status = document.getElementById('editor-save-status');
           if (status && readOnly) status.textContent = !navigator.onLine ? 'Offline · read-only' : 'Read-only until cloud sync completes';
         }
         document.querySelectorAll('#main-content button').forEach(btn => { btn.disabled = readOnly && !btn.matches('[data-open-folder],[data-open-label]'); });
         document.querySelectorAll('#main-content input,#main-content select,#main-content textarea').forEach(el => { if (readOnly) el.disabled = true; });
+        syncAttachmentMenuReadOnly(readOnly);
         updateSyncButton();
       }
 
@@ -1166,6 +1176,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           if (!saved) throw new Error('Cloud data was erased, but the empty local workspace could not be saved. Reload Memory to finish local cleanup.');
 
           editingNoteId = null; editorDraft = null; clearTimeout(autoSaveTimer);
+          closeAttachmentMenu({ restoreFocus: false });
+          if (attachmentRenameTargetId) cancelAttachmentRename(false);
           document.getElementById('editor-overlay').classList.add('hidden');
           currentView = 'home'; activeFolderId = null; activeLabelId = null; searchQuery = '';
           selectionMode = false; selectedIds.clear();
@@ -1876,6 +1888,8 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       }
 
       function closeEditor() {
+        closeAttachmentMenu({ restoreFocus: false });
+        if (attachmentRenameTargetId) cancelAttachmentRename(false);
         clearTimeout(autoSaveTimer);
         if (syncInProgress && editorDraft && activeSyncEditorDrafts) {
           const closingDraft = captureOpenEditorDraft();
@@ -2024,25 +2038,20 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         section.classList.remove('hidden');
         list.innerHTML = links.map(lk => `
           <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">
-            <div class="min-w-0">
-              <div class="text-xs font-medium text-main truncate">${escapeHtml(lk.title || lk.domain)}</div>
-              <div class="text-[11px] text-muted truncate">${escapeHtml(lk.domain)}${lk.metadataPending ? ' · title pending' : ''}</div>
-            </div>
+            <button type="button" data-open-link="${lk.id}" aria-label="Preview ${escapeHtml(lk.title || lk.domain)} in Memory" class="min-w-0 flex-1 text-left py-1 hover:opacity-80" style="min-height:44px">
+              <span class="block text-xs font-medium text-main truncate">${escapeHtml(lk.title || lk.domain)}</span>
+              <span class="block text-[11px] text-muted truncate">${escapeHtml(lk.domain)}${lk.metadataPending ? ' · title pending' : ''}</span>
+            </button>
             <div class="flex items-center gap-1 shrink-0">
               <button type="button" data-edit-link="${lk.id}" aria-label="Edit title for ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Edit displayed title"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-              <button type="button" data-open-link="${lk.id}" aria-label="Open ${escapeHtml(lk.title || lk.domain)} in Memory" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Open in Memory">
-                <i data-lucide="globe" class="w-3.5 h-3.5"></i>
-              </button>
-              <button type="button" data-remove-link="${lk.id}" aria-label="Remove ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link">
-                <i data-lucide="x" class="w-3.5 h-3.5"></i>
-              </button>
+              <button type="button" data-remove-link="${lk.id}" aria-label="Remove ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
             </div>
           </div>
         `).join('');
 
         list.querySelectorAll('[data-open-link]').forEach(btn => btn.addEventListener('click', () => {
           const link = (editorDraft.links || []).find(l => l.id === btn.getAttribute('data-open-link'));
-          if (link) openWebLinkPreview(link);
+          if (link) openLinkPreview(link);
         }));
         list.querySelectorAll('[data-edit-link]').forEach(btn => btn.addEventListener('click', () => {
           const link = (editorDraft.links || []).find(l => l.id === btn.getAttribute('data-edit-link'));
@@ -2066,48 +2075,391 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         refreshIcons();
       }
 
+      let activeAttachmentMenu = null;
+      let attachmentRenameTargetId = null;
+
       function renderEditorAttachments() {
+        closeAttachmentMenu({ restoreFocus: false });
         const section = document.getElementById('editor-attachments-section');
         const list = document.getElementById('editor-attachments-list');
         const attachments = editorDraft.attachments || [];
         if (!attachments.length) { section.classList.add('hidden'); list.innerHTML = ''; return; }
         section.classList.remove('hidden');
-        list.innerHTML = attachments.map(att => `
-          <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">
-            <button type="button" data-preview-att="${att.id}" class="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80">
-              <span class="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0 text-muted"><i data-lucide="${['PNG','JPG','JPEG','WEBP','GIF','SVG'].includes(att.type) ? 'image' : 'file-text'}" class="w-3.5 h-3.5"></i></span>
-              <span class="min-w-0"><span class="block text-xs font-medium text-main truncate">${escapeHtml(att.name)}</span><span class="block text-[11px] text-muted">${escapeHtml(att.type)} · ${escapeHtml(att.size)}</span></span>
-            </button>
-            <button type="button" data-remove-att="${att.id}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main shrink-0" title="More attachment options" aria-label="More options for ${escapeHtml(att.name)}"><i data-lucide="more-vertical" class="w-3.5 h-3.5"></i></button>
-          </div>
-        `).join('');
+        list.innerHTML = attachments.map(att => {
+          const id = escapeHtml(att.id);
+          const fileName = escapeHtml(att.name || 'Attachment');
+          const fileType = escapeHtml(att.type || 'FILE');
+          const fileSize = escapeHtml(att.size || '');
+          return '<div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-muted">' +
+            '<button type="button" data-preview-att="' + id + '" class="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80">' +
+              '<span class="w-7 h-7 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0 text-muted"><i data-lucide="' +
+                (['PNG','JPG','JPEG','WEBP','GIF','SVG','AVIF'].includes(att.type) ? 'image' : 'file-text') +
+              '" class="w-3.5 h-3.5"></i></span>' +
+              '<span class="min-w-0"><span class="block text-xs font-medium text-main truncate">' + fileName +
+              '</span><span class="block text-[11px] text-muted">' + fileType + ' · ' + fileSize + '</span></span>' +
+            '</button>' +
+            '<button type="button" data-att-menu="' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Options for ' + fileName +
+              '" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main shrink-0" style="min-width:44px;min-height:44px" title="Attachment options">' +
+              '<i data-lucide="more-vertical" class="w-3.5 h-3.5"></i></button>' +
+          '</div>';
+        }).join('');
+
         list.querySelectorAll('[data-preview-att]').forEach(btn => btn.addEventListener('click', () => openAttachmentPreview(btn.getAttribute('data-preview-att'))));
-        list.querySelectorAll('[data-remove-att]').forEach(btn => btn.addEventListener('click', () => {
-          const aid = btn.getAttribute('data-remove-att');
-          const att = editorDraft.attachments.find(a => a.id === aid);
-          openConfirm({
-            title: 'Remove attachment?', message: `Remove “${att ? att.name : 'this file'}” from the note?`, destructive: true,
-            onConfirm: () => { editorDraft.attachments = editorDraft.attachments.filter(a => a.id !== aid); renderEditorAttachments(); scheduleAutoSave(); }
-          });
+        list.querySelectorAll('[data-att-menu]').forEach(btn => btn.addEventListener('click', event => {
+          event.stopPropagation();
+          toggleAttachmentMenu(btn.getAttribute('data-att-menu'), btn);
         }));
         refreshIcons();
       }
 
+      function closeAttachmentMenu(options) {
+        if (!activeAttachmentMenu) return;
+        const config = options || {};
+        const current = activeAttachmentMenu;
+        activeAttachmentMenu = null;
+        current.cleanup();
+        current.panel.remove();
+        if (current.trigger && current.trigger.isConnected) {
+          current.trigger.setAttribute('aria-expanded', 'false');
+          if (config.restoreFocus) current.trigger.focus();
+        }
+      }
+
+      function syncAttachmentMenuReadOnly(readOnly) {
+        if (!activeAttachmentMenu) return;
+        activeAttachmentMenu.panel.querySelectorAll('[data-att-menu-action]').forEach(item => {
+          const action = item.getAttribute('data-att-menu-action');
+          item.disabled = !!readOnly && (action === 'rename' || action === 'remove');
+        });
+      }
+
+      function toggleAttachmentMenu(attachmentId, trigger) {
+        if (activeAttachmentMenu && activeAttachmentMenu.trigger === trigger) {
+          closeAttachmentMenu({ restoreFocus: false });
+          return;
+        }
+        closeAttachmentMenu({ restoreFocus: false });
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+
+        const panel = document.createElement('div');
+        panel.id = 'attachment-menu';
+        panel.setAttribute('role', 'menu');
+        panel.setAttribute('aria-label', 'Options for ' + (attachment.name || 'attachment'));
+        panel.className = 'rounded-xl bg-elevated border border-muted p-1';
+        Object.assign(panel.style, {
+          position: 'fixed', zIndex: '50', minWidth: '180px',
+          maxWidth: 'calc(100vw - 16px)', maxHeight: 'calc(100vh - 16px)',
+          overflowY: 'auto', boxShadow: 'var(--shadow-card)'
+        });
+
+        const readOnly = !canEditCloudData();
+        [['preview', 'Preview'], ['download', 'Download'], ['rename', 'Rename'], ['remove', 'Remove']].forEach(([action, label]) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.setAttribute('role', 'menuitem');
+          item.setAttribute('data-att-menu-action', action);
+          item.textContent = label;
+          item.className = 'w-full text-left text-xs font-medium text-main rounded-lg px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10';
+          item.style.minHeight = '44px';
+          item.disabled = readOnly && (action === 'rename' || action === 'remove');
+          panel.append(item);
+        });
+
+        document.body.append(panel);
+        trigger.setAttribute('aria-expanded', 'true');
+        const rect = trigger.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const edge = 8;
+        const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+        const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+        const panelWidth = Math.min(panelRect.width, viewportWidth - edge * 2);
+        const panelHeight = Math.min(panelRect.height, viewportHeight - edge * 2);
+        const left = Math.max(edge, Math.min(rect.right - panelWidth, viewportWidth - panelWidth - edge));
+        let top = rect.bottom + 4;
+        if (top + panelHeight > viewportHeight - edge) top = rect.top - panelHeight - 4;
+        top = Math.max(edge, Math.min(top, viewportHeight - panelHeight - edge));
+        panel.style.left = left + 'px';
+        panel.style.top = top + 'px';
+
+        const onOutsidePointerDown = event => {
+          if (!panel.contains(event.target) && !trigger.contains(event.target)) closeAttachmentMenu({ restoreFocus: false });
+        };
+        const onViewportChange = () => closeAttachmentMenu({ restoreFocus: false });
+        const cleanup = () => {
+          document.removeEventListener('pointerdown', onOutsidePointerDown, true);
+          window.removeEventListener('scroll', onViewportChange, true);
+          window.removeEventListener('resize', onViewportChange);
+        };
+        activeAttachmentMenu = { panel, trigger, cleanup };
+
+        panel.addEventListener('keydown', event => {
+          if (event.key === 'Escape') {
+            event.preventDefault(); event.stopPropagation();
+            closeAttachmentMenu({ restoreFocus: true });
+            return;
+          }
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+          event.preventDefault(); event.stopPropagation();
+          const items = Array.from(panel.querySelectorAll('[role="menuitem"]:not([disabled])'));
+          if (!items.length) return;
+          const index = items.indexOf(document.activeElement);
+          const next = event.key === 'ArrowDown'
+            ? (index + 1 + items.length) % items.length
+            : (index <= 0 ? items.length - 1 : index - 1);
+          items[next].focus();
+        });
+        panel.addEventListener('click', event => {
+          const item = event.target.closest('[data-att-menu-action]');
+          if (!item || item.disabled) return;
+          const action = item.getAttribute('data-att-menu-action');
+          closeAttachmentMenu({ restoreFocus: true });
+          runAttachmentMenuAction(action, attachmentId);
+        });
+        document.addEventListener('pointerdown', onOutsidePointerDown, true);
+        window.addEventListener('scroll', onViewportChange, true);
+        window.addEventListener('resize', onViewportChange);
+        const firstItem = panel.querySelector('[role="menuitem"]:not([disabled])');
+        if (firstItem) firstItem.focus();
+      }
+
+      function runAttachmentMenuAction(action, attachmentId) {
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+        if (action === 'preview') openAttachmentPreview(attachmentId);
+        else if (action === 'download') downloadAttachment(attachmentId);
+        else if (action === 'rename') openAttachmentRename(attachmentId);
+        else if (action === 'remove') {
+          openConfirm({
+            title: 'Remove attachment?',
+            message: 'Remove “' + (attachment ? attachment.name : 'this file') + '” from the note?',
+            destructive: true,
+            onConfirm: () => { editorDraft.attachments = editorDraft.attachments.filter(item => item.id !== attachmentId); renderEditorAttachments(); scheduleAutoSave(); }
+          });
+        }
+      }
+
+      function downloadAttachment(attachmentId) {
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+        const blob = attachment.blob || attachment.fileBlob;
+        if (!(blob instanceof Blob)) {
+          showToast('This older attachment has no saved file data. Please attach the file again.');
+          return;
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = attachment.name || 'Attachment';
+        anchor.hidden = true;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      }
+
+      function openAttachmentRename(attachmentId) {
+        if (!canEditCloudData()) return;
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentId);
+        if (!attachment) return;
+        attachmentRenameTargetId = attachmentId;
+        const input = document.getElementById('attachment-rename-input');
+        input.value = attachment.name || '';
+        document.getElementById('attachment-rename-error').textContent = '';
+        document.getElementById('attachment-rename-overlay').classList.remove('hidden');
+        input.focus();
+        input.select();
+      }
+
+      function cancelAttachmentRename(restoreFocus) {
+        const attachmentId = attachmentRenameTargetId;
+        attachmentRenameTargetId = null;
+        document.getElementById('attachment-rename-overlay').classList.add('hidden');
+        document.getElementById('attachment-rename-error').textContent = '';
+        if (restoreFocus !== false && attachmentId) {
+          const trigger = Array.from(document.querySelectorAll('[data-att-menu]'))
+            .find(item => item.getAttribute('data-att-menu') === attachmentId);
+          if (trigger) trigger.focus();
+        }
+      }
+
+      function saveAttachmentRename() {
+        if (!canEditCloudData() || !attachmentRenameTargetId) return;
+        const attachment = (editorDraft && editorDraft.attachments || []).find(item => item.id === attachmentRenameTargetId);
+        if (!attachment) { cancelAttachmentRename(false); return; }
+        const cleaned = document.getElementById('attachment-rename-input').value.trim();
+        let error = '';
+        if (!cleaned) error = 'Enter a file name.';
+        else if (cleaned.length > 120) error = 'File names must be 120 characters or fewer.';
+        else if (/[\/\\\u0000-\u001f\u007f-\u009f]/.test(cleaned)) error = 'File names cannot contain /, \\, or control characters.';
+        if (error) {
+          document.getElementById('attachment-rename-error').textContent = error;
+          document.getElementById('attachment-rename-input').focus();
+          return;
+        }
+        const attachmentId = attachmentRenameTargetId;
+        attachment.name = cleaned;
+        const dot = cleaned.lastIndexOf('.');
+        const extension = dot > 0 && dot < cleaned.length - 1 ? cleaned.slice(dot + 1) : '';
+        attachment.type = extension ? extension.toUpperCase() : 'FILE';
+        attachmentRenameTargetId = null;
+        document.getElementById('attachment-rename-overlay').classList.add('hidden');
+        document.getElementById('attachment-rename-error').textContent = '';
+        renderEditorAttachments();
+        scheduleAutoSave();
+        const trigger = Array.from(document.querySelectorAll('[data-att-menu]'))
+          .find(item => item.getAttribute('data-att-menu') === attachmentId);
+        if (trigger) trigger.focus();
+      }
+
       let previewObjectUrl = null;
-      function openWebLinkPreview(link) {
-        if (!link || !/^https?:\/\//i.test(link.url || '')) return;
+      let previewGeneration = 0;
+
+      function showLinkPreviewMessage(body, message) {
+        const status = document.createElement('p');
+        status.className = 'max-w-md text-sm text-muted p-6 text-center';
+        status.setAttribute('role', 'status');
+        status.textContent = message;
+        body.replaceChildren(status);
+      }
+
+      function openLinkPreview(link) {
+        const classification = MemoryLinkPreview.classifyLink(link && link.url);
+        const generation = ++previewGeneration;
+        if (previewObjectUrl) {
+          URL.revokeObjectURL(previewObjectUrl);
+          previewObjectUrl = null;
+        }
         previewReturnFocus = document.activeElement;
-        document.getElementById('file-preview-title').textContent = link.title || link.domain || 'Website';
-        document.getElementById('file-preview-download').classList.add('hidden');
+        document.getElementById('file-preview-title').textContent = (link && (link.title || link.domain)) || 'Link preview';
+        const download = document.getElementById('file-preview-download');
+        download.classList.add('hidden');
+        download.removeAttribute('href');
+        download.removeAttribute('download');
+
         const external = document.getElementById('file-preview-external');
-        external.href = link.url;
+        external.target = '_blank';
+        external.rel = 'noopener noreferrer';
+        external.classList.toggle('hidden', !classification.externalUrl);
+        if (classification.externalUrl) external.href = classification.externalUrl;
+        else external.removeAttribute('href');
+
         const body = document.getElementById('file-preview-body');
-        body.innerHTML = '<div class="w-full h-full flex items-center justify-center p-6 text-center"><p class="max-w-md text-sm text-muted">In-app website previews are disabled by the app security policy. Use “Open externally” to view this link in your browser.</p></div>';
+        body.replaceChildren();
         document.getElementById('file-preview-overlay').classList.remove('hidden');
+
+        if (classification.kind === 'invalid') {
+          showLinkPreviewMessage(body, "This link can't be previewed or opened.");
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+        if (classification.kind === 'insecure') {
+          showLinkPreviewMessage(body, "This link uses http, so it can't be previewed here. Use Open externally.");
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+        if (classification.kind === 'unsupported-file') {
+          showLinkPreviewMessage(body, "This file type can't be previewed in the browser. Use Open externally.");
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+
+        let stage = body;
+        if (classification.kind === 'page') {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'w-full h-full min-h-0 flex flex-col';
+          const hint = document.createElement('div');
+          hint.className = 'px-3 py-2 text-xs text-muted border-b border-muted bg-surface shrink-0';
+          hint.textContent = "Some sites don't allow previews. If this looks blank, use Open externally.";
+          stage = document.createElement('div');
+          stage.className = 'relative flex-1 min-h-0';
+          wrapper.append(hint, stage);
+          body.replaceChildren(wrapper);
+        }
+
+        const status = document.createElement('p');
+        status.className = 'max-w-md text-sm text-muted p-6 text-center';
+        status.setAttribute('role', 'status');
+        status.style.position = 'absolute';
+        status.style.zIndex = '1';
+        status.style.left = '0';
+        status.style.right = '0';
+        status.style.top = '0';
+        status.style.pointerEvents = 'none';
+        stage.style.position = 'relative';
+        status.textContent = navigator.onLine ? 'Loading…' : "You're offline. Link previews need a connection.";
+        stage.append(status);
+        if (!navigator.onLine) {
+          document.getElementById('file-preview-close').focus();
+          return;
+        }
+
+        let sameOrigin = false;
+        try { sameOrigin = new URL(classification.src).origin === window.location.origin; } catch (_) {}
+        const loaded = element => {
+          if (generation !== previewGeneration) return;
+          status.remove();
+          element.hidden = false;
+        };
+        const failed = () => {
+          if (generation !== previewGeneration) return;
+          status.textContent = "Preview couldn't be loaded. Use Open externally.";
+        };
+
+        let element;
+        if (classification.kind === 'image') {
+          element = document.createElement('img');
+          element.alt = (link && (link.title || link.domain)) || 'Linked image';
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'max-w-full max-h-full object-contain p-3';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        } else if (classification.kind === 'pdf') {
+          element = document.createElement('iframe');
+          element.title = (link && (link.title || link.domain)) || 'PDF preview';
+          element.setAttribute('sandbox', sameOrigin ? 'allow-scripts' : 'allow-scripts allow-same-origin');
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'w-full h-full border-0 bg-white';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        } else if (classification.kind === 'video' || classification.kind === 'audio') {
+          element = document.createElement(classification.kind);
+          element.controls = true;
+          element.setAttribute('playsinline', '');
+          if (classification.kind === 'video') element.playsInline = true;
+          element.className = classification.kind === 'video' ? 'max-w-full max-h-full' : 'w-full max-w-xl p-4';
+          element.addEventListener('loadeddata', () => loaded(element), { once: true });
+          element.addEventListener('canplay', () => loaded(element), { once: true });
+          element.addEventListener('error', failed, { once: true });
+        } else if (classification.kind === 'video-embed') {
+          element = document.createElement('iframe');
+          element.title = (link && (link.title || link.domain)) || 'Video preview';
+          element.setAttribute('sandbox', sameOrigin
+            ? 'allow-scripts allow-popups allow-popups-to-escape-sandbox'
+            : 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+          element.setAttribute('allow', 'fullscreen; picture-in-picture');
+          element.setAttribute('allowfullscreen', '');
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'w-full h-full border-0 bg-black';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        } else {
+          element = document.createElement('iframe');
+          element.title = (link && (link.title || link.domain)) || 'Website preview';
+          element.setAttribute('sandbox', sameOrigin
+            ? 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox'
+            : 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+          element.setAttribute('referrerpolicy', 'no-referrer');
+          element.className = 'w-full h-full border-0 bg-white';
+          element.onload = () => loaded(element);
+          element.onerror = failed;
+        }
+
+        stage.append(element);
+        element.src = classification.src;
         document.getElementById('file-preview-close').focus();
       }
 
-      let previewGeneration = 0;
       function openAttachmentPreview(attachmentId) {
         const attachment = (editorDraft && editorDraft.attachments || []).find(a => a.id === attachmentId);
         if (!attachment) return;
@@ -2131,7 +2483,11 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         download.href = objectUrl;
         download.download = attachment.name;
         download.classList.remove('hidden');
-        document.getElementById('file-preview-external').href = objectUrl;
+        const external = document.getElementById('file-preview-external');
+        external.classList.remove('hidden');
+        external.target = '_blank';
+        external.rel = 'noopener noreferrer';
+        external.href = objectUrl;
 
         const body = document.getElementById('file-preview-body');
         body.replaceChildren();
@@ -2201,7 +2557,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         previewGeneration++;
         document.getElementById('file-preview-overlay').classList.add('hidden');
         document.getElementById('file-preview-body').replaceChildren();
-        document.getElementById('file-preview-download').classList.remove('hidden');
+        document.getElementById('file-preview-download').classList.add('hidden');
         if (previewReturnFocus && previewReturnFocus.focus) previewReturnFocus.focus();
         previewReturnFocus = null;
         if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
@@ -2537,7 +2893,16 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         if (typeof cb === 'function') cb();
       });
 
-      // Attachment preview controls.
+      // Attachment rename and preview controls.
+      document.getElementById('attachment-rename-save').addEventListener('click', saveAttachmentRename);
+      document.getElementById('attachment-rename-cancel').addEventListener('click', () => cancelAttachmentRename(true));
+      document.getElementById('attachment-rename-overlay').addEventListener('click', event => {
+        if (event.target.id === 'attachment-rename-overlay') cancelAttachmentRename(true);
+      });
+      document.getElementById('attachment-rename-input').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); saveAttachmentRename(); }
+        else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancelAttachmentRename(true); }
+      });
       document.getElementById('file-preview-close').addEventListener('click', closeAttachmentPreview);
       document.getElementById('file-preview-overlay').addEventListener('click', e => { if (e.target.id === 'file-preview-overlay') closeAttachmentPreview(); });
 
@@ -2560,11 +2925,15 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         const visible = id => !document.getElementById(id).classList.contains('hidden');
         const drawerOpen = document.getElementById('mobile-drawer').getAttribute('aria-hidden') === 'false';
         const activeModal = visible('file-preview-overlay') ? document.querySelector('#file-preview-overlay [role="dialog"]')
+          : visible('attachment-rename-overlay') ? document.querySelector('#attachment-rename-overlay [role="dialog"]')
           : visible('confirm-overlay') ? document.querySelector('#confirm-overlay [role="alertdialog"]')
+          : activeAttachmentMenu ? activeAttachmentMenu.panel
           : visible('editor-overlay') ? document.getElementById('editor-panel')
           : drawerOpen ? document.getElementById('mobile-drawer') : null;
         if (e.key === 'Escape') {
-          if (visible('file-preview-overlay')) closeAttachmentPreview();
+          if (activeAttachmentMenu) closeAttachmentMenu({ restoreFocus: true });
+          else if (visible('attachment-rename-overlay')) cancelAttachmentRename(true);
+          else if (visible('file-preview-overlay')) closeAttachmentPreview();
           else if (visible('confirm-overlay')) closeConfirm();
           else if (visible('editor-overlay') && !document.getElementById('editor-more-menu').classList.contains('hidden')) {
             document.getElementById('editor-more-menu').classList.add('hidden');
