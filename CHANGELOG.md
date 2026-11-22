@@ -10,6 +10,10 @@
 - Requires real-device verification for storage, attachment persistence, PWA installation, and offline behaviour.
 
 ## Unreleased
+- Attachment additions, removals, and metadata changes now advance the parent note's sync timestamp.
+- Cross-device sync now downloads a cloud attachment when its local metadata exists but its binary is missing, instead of treating the ID alone as proof the file is present.
+- Added a visible sync-failure notice and a detailed error in Settings; open, online devices now check for remote changes every 30 seconds, while background tabs do not poll.
+- Bumped the PWA shell cache to v14 for the sync reliability update.
 - Made Google sign-in mandatory before Memory can display or edit notes; signed-out users now see a dedicated sign-in screen.
 - Removed the legacy signed-out IndexedDB workspace and old localStorage guest cache on startup. Account-specific workspaces and their offline copies remain intact.
 - Removed automatic migration of signed-out notes into the first Google account; each account now opens only its own workspace.
