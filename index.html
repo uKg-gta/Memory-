@@ -1020,7 +1020,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         const banner = document.getElementById('cloud-status-banner');
         if (banner) {
           banner.classList.toggle('hidden', !readOnly);
-          banner.textContent = !navigator.onLine ? 'Offline · read-only. Showing the last notes saved on this device.' : syncStatus === 'error' ? 'Cloud sync needs attention · read-only until your notes sync successfully.' : 'Connecting and syncing your notes · editing is temporarily paused.';
+          banner.textContent = !navigator.onLine ? 'Offline · read-only. Showing the last notes saved on this device.' : syncStatus === 'error' ? 'Cloud sync needs attention · read-only until your notes sync successfully.' : syncInProgress ? 'Syncing cloud data · read-only until the initial sync succeeds.' : 'Initial cloud sync required · tap Sync to enable editing.';
         }
         const overlay = document.getElementById('editor-overlay');
         if (overlay && !overlay.classList.contains('hidden')) {
@@ -1029,7 +1029,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           if (title) title.readOnly = readOnly;
           if (body) body.contentEditable = String(!readOnly);
           document.querySelectorAll('#editor-checklist-items input').forEach(el => { el.disabled = readOnly && el.type === 'checkbox'; el.readOnly = readOnly && el.type !== 'checkbox'; });
-          document.querySelectorAll('#editor-panel button').forEach(btn => { btn.disabled = readOnly && !btn.matches('#editor-done-btn,[data-preview-att],[data-open-link]'); });
+          document.querySelectorAll('#editor-panel button').forEach(btn => { btn.disabled = readOnly && !btn.matches('#editor-done-btn,[data-preview-att],[data-open-link],[data-sync-trigger]'); });
           const status = document.getElementById('editor-save-status');
           if (status && readOnly) status.textContent = !navigator.onLine ? 'Offline · read-only' : 'Read-only until cloud sync completes';
         }
