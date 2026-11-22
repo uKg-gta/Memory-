@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { chromium } = require('playwright');
 
 test('DOMPurify removes executable markup and unsafe attributes in Chromium', async () => {
