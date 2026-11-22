@@ -127,7 +127,7 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
       }
       return { names, allKeys };
     });
-    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v27-shell'));
+    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v28-shell'));
     const approvedExternal = new Set([
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
       'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
