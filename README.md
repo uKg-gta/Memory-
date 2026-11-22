@@ -92,6 +92,8 @@ Keep the app's supporting files beside `index.html`, including `manifest.webmani
 - The browser uses only the Supabase publishable key. No service-role or secret key is shipped to the client.
 - Supabase is authoritative for notes, folders, labels, note-label relationships, attachment metadata, and attachment files.
 - IndexedDB stores a separate per-account cache of data already downloaded to that device. It supports offline reading, not offline editing or queued offline writes.
+- Each app launch performs one initial cloud sync after sign-in. After that, use the persistent Sync control to exchange changes; local autosave, timers, app focus, and reconnect do not start cloud syncs automatically.
+- Realtime notifications can flag that cloud changes are available, but the user starts the sync.
 - Account-owned database records are protected by row-level security. Attachment files are stored in a private bucket and accessed through authenticated Storage operations.
 - The service worker must never cache Supabase API or Storage traffic. Only explicitly allowlisted CDN assets may enter the runtime cache.
 - Do not commit personal notes, exported backups, attachment data, credentials, API keys, or environment files.
