@@ -518,14 +518,14 @@
         : null;
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,realtimeChannel=null,syncRequested=false;
+      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,realtimeChannel=null,syncRequested=false,realtimeSyncTimer=null;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:new Date(n.updatedAt||n.createdAt||Date.now()).toISOString(),deleted_at:null};}
-      function queueCloudSync(delay=100){if(!authUser||!supabaseClient||!syncReady)return;if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
+      function queueCloudSync(delay=100,source='local'){if(!authUser||!supabaseClient||!syncReady)return;if(source==='realtime'){clearTimeout(realtimeSyncTimer);realtimeSyncTimer=setTimeout(()=>queueCloudSync(100,'realtime-run'),350);return;}if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
       async function subscribeToAccountChanges(userId){
         if(realtimeChannel){await supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}
         if(!userId||!supabaseClient)return;
         realtimeChannel=supabaseClient.channel('memory-notes-'+userId)
-          .on('postgres_changes',{event:'*',schema:'public',table:'notes',filter:'user_id=eq.'+userId},()=>queueCloudSync(100))
+          .on('postgres_changes',{event:'*',schema:'public',table:'notes',filter:'user_id=eq.'+userId},()=>queueCloudSync(100,'realtime'))
           .subscribe((status,error)=>{
             if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
               console.warn('Memory realtime subscription issue:',status,error||'');
@@ -567,7 +567,7 @@
           const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
           const labelMap=new Map(remoteLabels.filter(x=>x.client_id&&x.client_id!==RESET_MARKER_CLIENT_ID).map(x=>[x.client_id,x]));
           const noteMap=new Map(remoteNotes.filter(x=>x.client_id).map(x=>[x.client_id,x]));
-          const uploadsFolders=[],uploadsLabels=[],uploadsNotes=[];
+          const uploadsFolders=[],uploadsLabels=[],uploadsNotes=[],noteExpectedVersions=new Map();
           for(const f of state.folders){const r=folderMap.get(f.id);const payload={user_id:userId,client_id:f.id,name:f.name,updated_at:f.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsFolders.push(payload);}
           for(const l of state.labels){const r=labelMap.get(l.id);const payload={user_id:userId,client_id:l.id,name:l.name,colour:l.colour||'olive',updated_at:l.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsLabels.push(payload);}
           if(uploadsFolders.length){const q=await supabaseClient.from('folders').upsert(uploadsFolders,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
@@ -595,7 +595,7 @@
               // Equal timestamps mean the cloud copy is already current; uploading
               // again would emit another Realtime event and create a sync loop.
               const folder=folderByClient.get(n.folderId);
-              uploadsNotes.push({user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),folder_id:folder?folder.id:null,archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:n.updatedAt||new Date().toISOString(),deleted_at:null});
+              noteExpectedVersions.set(n.id,r.updated_at);uploadsNotes.push({user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),folder_id:folder?folder.id:null,archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:n.updatedAt||new Date().toISOString(),deleted_at:null});
               merged.push(n);
             }else if(r){
               // Cloud wins on equal timestamps and when it is newer.
@@ -607,7 +607,18 @@
             }
           }
           for(const r of remoteNotes){if(!r.client_id||localNoteById.has(r.client_id)||r.deleted_at)continue;const f=r.folder_id?folderByUuid.get(r.folder_id):null;merged.push({id:r.client_id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:f?f.client_id:'',labelIds:[],attachments:[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||Date.now(),updatedAt:r.updated_at});}
-          if(uploadsNotes.length){const q=await supabaseClient.from('notes').upsert(uploadsNotes,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
+          // Compare-and-swap note writes prevent two devices from overwriting a newer cloud version.
+          for(const payload of uploadsNotes){
+            const expected=noteExpectedVersions.get(payload.client_id);
+            if(expected){
+              const q=await supabaseClient.from('notes').update(payload).eq('user_id',userId).eq('client_id',payload.client_id).eq('updated_at',expected).select('id');
+              if(q.error)throw q.error;
+              if(!q.data||q.data.length===0)syncRequested=true;
+            }else{
+              const q=await supabaseClient.from('notes').insert(payload).select('id');
+              if(q.error){if(q.error.code==='23505')syncRequested=true;else throw q.error;}
+            }
+          }
           const freshNotes=await fetchAllRows('notes','id,user_id,client_id,updated_at,deleted_at',userId);
           const noteByClient=new Map(freshNotes.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
           // Persist label relationships using stable local IDs alongside the database UUID foreign keys.
