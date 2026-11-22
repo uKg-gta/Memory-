@@ -82,7 +82,7 @@ python -m http.server 8000
 
 Then open [http://localhost:8000](http://localhost:8000).
 
-Keep the app's supporting files beside `index.html`, including `manifest.webmanifest`, `sw.js`, the app icons, `vendor/purify.min.js`, and `note-sanitizer.js`.
+Keep the app's supporting files beside `index.html`, including `manifest.webmanifest`, `sw.js`, the app icons, `vendor/purify.min.js`, `note-sanitizer.js`, and the `note-*-core.js` / `note-storage.js` modules.
 
 ## Account, sync, and privacy
 
