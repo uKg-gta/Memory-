@@ -1,3 +1,9 @@
+## 2026-11-22 — Account reset
+- Added a Settings reset action for the currently signed-in Google account.
+- Requires typing RESET; permanently removes that account's cloud notes, folders, labels, relationships, attachment metadata and Storage files, then clears its local workspace and pending sync state.
+- Keeps the Google sign-in session and appearance preference; does not affect other accounts.
+- Reset is online-only and reports errors instead of silently claiming success.
+
 # Changelog
 
 ## Memory.latest
