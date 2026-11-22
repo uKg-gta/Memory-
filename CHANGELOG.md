@@ -141,3 +141,11 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Kept uploaded file bytes inside the browser during preview; no external document-viewer service is used.
 - Added the preview module to the offline app shell, updated Tailwind scanning, and added browser regression coverage for text, DOCX extraction, PDF sandboxing, and binary fallback.
 - Known renderer limits: legacy DOC/XLS/PPT, RAR/7z archives, and 3D model formats currently use the inspector fallback rather than full document/archive rendering or a 3D viewport. Audio/video playback depends on browser codec support.
+
+
+## 2026-11-23 — Restore the built-in attachment viewer
+
+- Restored the original in-app attachment preview flow for images, PDFs, HTML, text/source files, audio, and video after the universal preview module regressed the PDF experience.
+- PDFs again use the browser's native viewer in the in-app iframe; PDF MIME is normalized when the uploaded Blob lacks the correct type.
+- Kept HTML previews sandboxed, text previews use `textContent`, and stale asynchronous previews are ignored.
+- Removed the unused universal preview module from the loaded app shell and bumped the service-worker cache to v33.
