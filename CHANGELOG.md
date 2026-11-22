@@ -180,3 +180,11 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Changed non-allowlisted external service-worker requests to native browser pass-through, kept Supabase traffic explicitly network-only, added note-link-preview.js to the shell, and bumped the PWA cache to v36.
 - Added Node classifier/sync coverage and Playwright coverage for HTTPS previews, CSP, attachment menu keyboard/read-only/rename/remove flows, and viewport placement.
 - Known limits: pages that block framing may appear blank; Office/archive links are not previewed; link titles still are not fetched from external websites.
+
+
+## 2026-11-23 — Layout and sync recovery
+
+- Restored the last known-good production Tailwind stylesheet after the generated stylesheet omitted grid and responsive grid utilities, breaking the note-card layout.
+- Made sync conflict-copy creation idempotent so a repeated reconciliation reuses an identical existing copy instead of creating another duplicate.
+- Bumped the service-worker cache to v37 so installed PWAs fetch the restored stylesheet and updated sync code.
+- Added regression tests for the responsive note grid and conflict-copy reuse.

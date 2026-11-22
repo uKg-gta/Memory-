@@ -210,7 +210,21 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           const merged=[],deletedIds=syncMeta.deletedNoteIds||[];
           if(deletedIds.length){const oldRows=remoteNotes.filter(n=>deletedIds.includes(n.client_id));for(const oldNote of oldRows){const files=await supabaseClient.from('attachments').select('storage_path').eq('user_id',userId).eq('note_id',oldNote.id);if(files.error)throw files.error;if(files.data&&files.data.length){const rm=await supabaseClient.storage.from('memory-attachments').remove(files.data.map(x=>x.storage_path));if(rm.error)throw rm.error;const mark=await supabaseClient.from('attachments').update({deleted_at:new Date().toISOString()}).eq('user_id',userId).eq('note_id',oldNote.id);if(mark.error)throw mark.error;}}const q=await supabaseClient.from('notes').update({deleted_at:new Date().toISOString()}).eq('user_id',userId).in('client_id',deletedIds);if(q.error)throw q.error;}
           function remoteNoteToLocal(r,local){const f=r.folder_id?folderByUuid.get(r.folder_id):null;return {id:r.client_id,title:r.title||'',bodyHtml:sanitizeNoteHtml(r.body_html||''),checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:f?f.client_id:'',labelIds:local&&local.labelIds||[],attachments:local&&local.attachments||[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||local&&local.createdAt||Date.now(),updatedAt:r.updated_at};}
-          function addConflictCopy(local){syncConflictIds.add(local.id);const copy={...cloneData(local),id:uid('n-conflict'),title:'Conflict copy — '+(local.title||'Untitled note'),createdAt:Date.now(),updatedAt:new Date().toISOString()};merged.push(copy);pendingNoteIds.add(copy.id);syncRequested=true;}
+          function addConflictCopy(local){
+            syncConflictIds.add(local.id);
+            const conflictTitle='Conflict copy — '+(local.title||'Untitled note');
+            const knownCopies=[...state.notes,...merged];
+            let copy=MemorySyncCore.findMatchingConflictCopy(knownCopies,local,note=>syncEditorDraftFingerprint(note),conflictTitle);
+            if(copy){
+              if(!merged.some(item=>item.id===copy.id))merged.push(copy);
+              const remoteCopy=remoteNotes.find(row=>row.client_id===copy.id);
+              if(!remoteCopy||remoteCopy.deleted_at){pendingNoteIds.add(copy.id);syncRequested=true;}
+              return copy;
+            }
+            copy={...cloneData(local),id:uid('n-conflict'),title:conflictTitle,createdAt:Date.now(),updatedAt:new Date().toISOString()};
+            merged.push(copy);pendingNoteIds.add(copy.id);syncRequested=true;
+            return copy;
+          }
           function notePayload(n){const f=folderByClient.get(n.folderId);return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),folder_id:f?f.id:null,archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
           const noteSyncPlan=MemorySyncCore.planNoteSync(state.notes,remoteNotes,pendingNoteIds,{fingerprint:noteSyncFingerprint,remoteToLocal:remoteNoteToLocal});
           for(const item of noteSyncPlan.local){
