@@ -130,3 +130,15 @@ test('renaming an attachment changes its fingerprint and updates only the existi
   assert.equal(attachmentMetadataUpdate({ file_name: 'Report.PdF', deleted_at: null }, renamed.attachments[0]), null);
   assert.equal(attachmentMetadataUpdate({ file_name: 'report-old.pdf', deleted_at: '2026-01-01T00:00:00Z' }, renamed.attachments[0]), null);
 });
+
+
+test('conflict-copy lookup reuses an identical existing copy instead of creating another', () => {
+  const fingerprint = note => JSON.stringify({ title: note.title, bodyHtml: note.bodyHtml || '' });
+  const source = { id: 'note-1', title: 'To buy', bodyHtml: '<p>Milk</p>' };
+  const existing = { id: 'conflict-1', title: 'Conflict copy — To buy', bodyHtml: '<p>Milk</p>' };
+  const changed = { id: 'conflict-2', title: 'Conflict copy — To buy', bodyHtml: '<p>Bread</p>' };
+  const find = require('../note-sync-core.js').findMatchingConflictCopy;
+  assert.equal(find([existing, changed], source, fingerprint, 'Conflict copy — To buy'), existing);
+  assert.equal(find([changed], source, fingerprint, 'Conflict copy — To buy'), null);
+  assert.equal(find([], source, fingerprint, 'Conflict copy — To buy'), null);
+});
