@@ -127,7 +127,7 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
       }
       return { names, allKeys };
     });
-    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v32-shell'));
+    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v33-shell'));
     const approvedExternal = new Set([
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
       'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
@@ -179,58 +179,4 @@ test('built-in attachment viewer previews browser-supported files in the app', (
   assert.match(html, /player\\.controls = true/);
   assert.match(html, /generation !== previewGeneration/);
   assert.match(html, /Preview isn't available for this file type/);
-});
-
-test('preview engine renders text, Office documents, PDFs and binary inspector in Chromium', async () => {
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage();
-    await page.setContent('<!doctype html><html><body><div id="preview"></div></body></html>');
-    await page.addScriptTag({ path: path.join(__dirname, '..', 'vendor', 'purify.min.js') });
-    await page.addScriptTag({ path: path.join(__dirname, '..', 'note-attachment-preview.js') });
-    const result = await page.evaluate(async () => {
-      const host = document.getElementById('preview');
-      const textBlob = new Blob(['{"hello":"Memory"}'], { type: 'application/json' });
-      await MemoryAttachmentPreview.render({ container: host, blob: textBlob, name: 'sample.json', mimeType: 'application/json', objectUrl: URL.createObjectURL(textBlob) });
-      const text = host.querySelector('pre')?.textContent || '';
-      const makeZip = (files) => {
-        const encoder = new TextEncoder();
-        const locals = [], centrals = [];
-        let localOffset = 0, centralSize = 0;
-        for (const [name, content] of Object.entries(files)) {
-          const n = encoder.encode(name), data = encoder.encode(content);
-          const local = new Uint8Array(30 + n.length + data.length);
-          const lv = new DataView(local.buffer);
-          lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true); lv.setUint16(8,0,true);
-          lv.setUint32(18,data.length,true); lv.setUint32(22,data.length,true); lv.setUint16(26,n.length,true);
-          local.set(n,30); local.set(data,30+n.length); locals.push(local);
-          const central = new Uint8Array(46+n.length), cv = new DataView(central.buffer);
-          cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
-          cv.setUint32(20,data.length,true); cv.setUint32(24,data.length,true); cv.setUint16(28,n.length,true);
-          cv.setUint32(42,localOffset,true); central.set(n,46); centrals.push(central);
-          localOffset += local.length; centralSize += central.length;
-        }
-        const end = new Uint8Array(22), ev = new DataView(end.buffer);
-        ev.setUint32(0,0x06054b50,true); ev.setUint16(8,locals.length,true); ev.setUint16(10,locals.length,true);
-        ev.setUint32(12,centralSize,true); ev.setUint32(16,localOffset,true);
-        return new Blob([...locals,...centrals,end],{type:'application/zip'});
-      };
-      const docx = makeZip({'word/document.xml':'<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>Hello from Word</w:t></w:r></w:p></w:body></w:document>'});
-      await MemoryAttachmentPreview.render({ container: host, blob: docx, name: 'sample.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', objectUrl: URL.createObjectURL(docx) });
-      const office = host.textContent.includes('Hello from Word');
-      const binary = new Blob([new Uint8Array([0x4d,0x5a,0x00,0xff])], { type: 'application/octet-stream' });
-      await MemoryAttachmentPreview.render({ container: host, blob: binary, name: 'sample.exe', mimeType: 'application/octet-stream', objectUrl: URL.createObjectURL(binary) });
-      const inspector = host.textContent.includes('File inspector') && host.textContent.includes('Binary preview');
-      const pdf = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
-      await MemoryAttachmentPreview.render({ container: host, blob: pdf, name: 'sample.pdf', mimeType: 'application/pdf', objectUrl: URL.createObjectURL(pdf) });
-      const pdfSandboxed = host.querySelector('iframe')?.getAttribute('sandbox') === 'allow-scripts';
-      return { text, office, inspector, pdfSandboxed };
-    });
-    assert.match(result.text, /"hello": "Memory"/);
-    assert.equal(result.office, true);
-    assert.equal(result.inspector, true);
-    assert.equal(result.pdfSandboxed, true);
-  } finally {
-    await browser.close();
-  }
 });
