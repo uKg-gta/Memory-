@@ -18,6 +18,7 @@
   <script src="./note-state-core.js"></script>
   <script src="./note-auth-core.js"></script>
   <script src="./note-editor-core.js"></script>
+  <script src="./note-realtime-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -524,26 +525,28 @@
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
         : null;
       const accountAuth = MemoryNoteAuth.create(supabaseClient, () => window.location.origin + window.location.pathname);
+      const realtimeManager = MemoryRealtime.create(supabaseClient, {
+        onChange: () => queueCloudSync(100, 'realtime'),
+        onStatus: (status, detail, error) => {
+          if (status === 'disconnected') {
+            console.warn('Memory realtime subscription issue:', detail, error || '');
+            realtimeStatus = 'disconnected';
+          } else {
+            realtimeStatus = 'connected';
+          }
+          if (currentView === 'settings') renderMain();
+        },
+        onRemovalError: error => console.warn('Could not remove previous Memory realtime channel:', error)
+      });
       const RESET_MARKER_CLIENT_ID = '__memory_account_reset__';
       let activeStorageKey='primary';
-      let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,realtimeChannel=null,syncRequested=false,realtimeSyncTimer=null;
+      let authUser=null,authReady=false,syncStatus='idle',syncError='',realtimeStatus='disconnected',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,suppressQueueCloudSync=false,syncTimer=null,syncRequested=false,realtimeSyncTimer=null;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:sanitizeNoteHtml(n.bodyHtml||''),checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function noteSyncFingerprint(n){return MemorySyncCore.fingerprintNote(n,sanitizeNoteHtml);}
       function queueCloudSync(delay=100,source='local'){if(!authUser||!supabaseClient||!syncReady)return;if(source==='realtime'){clearTimeout(realtimeSyncTimer);realtimeSyncTimer=setTimeout(()=>queueCloudSync(100,'realtime-run'),350);return;}if(syncInProgress){syncRequested=true;return;}clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
       async function subscribeToAccountChanges(userId){
-        if(realtimeChannel){await supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}
         if(!userId||!supabaseClient)return;
-        realtimeChannel=supabaseClient.channel('memory-notes-'+userId)
-          .on('postgres_changes',{event:'*',schema:'public',table:'notes',filter:'user_id=eq.'+userId},()=>queueCloudSync(100,'realtime'))
-          .subscribe((status,error)=>{
-            if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-              console.warn('Memory realtime subscription issue:',status,error||'');
-              syncError='Live updates disconnected. Reconnecting…';
-            } else if(status==='SUBSCRIBED') {
-              syncError='';
-            }
-            if(currentView==='settings')renderMain();
-          });
+        await realtimeManager.subscribe(userId);
       }
       async function fetchAllRows(table, columns, userId) {
         const all=[]; let from=0, pageSize=500;
@@ -726,10 +729,16 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
             authReady = true;
             if (!nextUser) {
               syncReady = false; syncStatus = 'idle';
-              if(realtimeChannel){supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}
+              clearTimeout(syncTimer); clearTimeout(realtimeSyncTimer); syncRequested = false;
+              realtimeStatus = 'disconnected';
+              realtimeManager.close();
               updateAuthGate(); return;
             }
             if (changed) {
+              syncReady = false;
+              clearTimeout(syncTimer); clearTimeout(realtimeSyncTimer); syncRequested = false;
+              realtimeStatus = 'disconnected';
+              realtimeManager.close();
               switchAccountWorkspace(nextUser).then(async () => {
                 syncReady = true; await subscribeToAccountChanges(nextUser.id); queueCloudSync(100); updateAuthGate(); renderAll();
               }).catch(e => {
@@ -737,7 +746,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
                 syncStatus = 'error'; syncError = 'Could not load this account’s local notes'; updateAuthGate();
               });
             } else {
-              syncReady = true; subscribeToAccountChanges(nextUser.id); queueCloudSync(100); updateAuthGate();
+              syncReady = true; queueCloudSync(100); updateAuthGate();
             }
             if (currentView === 'settings') renderMain();
           });
