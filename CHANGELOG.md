@@ -43,3 +43,11 @@
 - Added account-isolated local workspaces so notes from one signed-in account are not silently uploaded to another account on a shared browser.
 - Added paginated cloud reads, focus/visibility sync retries, and attachment cleanup for permanently deleted notes.
 - Pinned and precached Supabase JS 2.119.2; refreshed service-worker cache.
+
+
+## 2026-11-22 — In-app previews and sync timestamp reliability
+- Saved website links now open in Memory's in-app preview, with an explicit external-browser option. Sites that block embedded viewing may still require opening externally.
+- HTML and HTM attachments now open in a sandboxed in-app iframe; scripts cannot access the parent Memory page or its origin.
+- Added in-app previews for common text formats and native audio/video playback where the browser supports them. Existing PDF and image previews remain.
+- New notes and changed notes now receive an explicit update timestamp before persistence and cloud upload, improving cross-device conflict detection for changes such as newly added links.
+- Bumped the PWA shell cache to v13 so installed devices fetch the updated app.
