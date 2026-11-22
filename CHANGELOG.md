@@ -115,3 +115,9 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Live Google OAuth, authenticated cross-account RLS attempts, real attachment lifecycle, interruption/recovery, and end-to-end multi-tab Realtime delivery remain unverified.
 - The current Storage bucket has no per-bucket file-size limit or MIME allowlist. The app also has no configured Content Security Policy. These are production hardening gaps.
 - The app remains a prototype and must not be described as production-ready until the outstanding live acceptance tests and security hardening are completed.
+
+
+## Issue 4 — Migration regression coverage
+
+- Added deterministic Node tests that guard the two production migrations: Realtime publication membership and least-privilege application table grants.
+- Added the migration regression tests to the GitHub Actions security-verification workflow. These are static migration checks, not live database integration tests.
