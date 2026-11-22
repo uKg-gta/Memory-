@@ -2,7 +2,7 @@
 
 ## One-sentence vision
 
-A personal space for capturing everyday information quickly and finding it again reliably.
+A personal space for capturing everyday information quickly and finding it again reliably, across signed-in devices.
 
 ## The problem
 
@@ -13,23 +13,25 @@ Useful information arrives in fragments: a thought, a name, a date, a calculatio
 1. **Capture before organisation.** A note should not require a folder or label before it can be saved.
 2. **Retrieval is central.** Search and clear organisation matter more than dashboards or productivity metrics.
 3. **Keep the interface calm.** Avoid unnecessary controls, decorative clutter, and project-management complexity.
-4. **Local-first reliability.** Notes and attachments should remain available on the device and work offline.
-5. **User-controlled organisation.** Folders, labels, pinning, archive, and trash should be predictable and reversible where possible.
-6. **Cloud comes last.** Authentication and cross-device sync are a later phase, after local storage and recovery are dependable.
+4. **Cloud-authoritative continuity.** A signed-in user's Supabase account is the source of truth across devices.
+5. **Offline access without divergent copies.** Previously downloaded content remains readable from a per-account local cache, but offline editing is not supported.
+6. **User-controlled organisation.** Folders, labels, pinning, archive, and trash should be predictable and reversible where possible.
+7. **Privacy by account.** Authentication, row-level security, account-scoped local caches, and private attachment storage are foundational.
 
 ## Intended experience
 
 - Personal, single-user notes application.
+- Google sign-in and account-scoped data.
 - Responsive across Android, iPad/tablets, laptops, and desktops.
-- Installable PWA.
+- Installable PWA with offline app-shell support and read-only access to cached content.
 - Light and dark themes, manually selected.
 - Warm, muted Modern Hearth visual identity.
-- Quick capture, optional titles, autosave, and a minimal editor.
+- Quick capture, optional titles, autosave, and a minimal editor while online and synchronised.
 
-## Out of scope for the initial local-first phase
+## Out of scope for the current prototype
 
 - Multi-user collaboration
 - Complex project or task management
 - AI summaries and OCR
-- Cloud sync and account authentication
+- Offline editing and queued offline writes
 - Advanced search filters and content indexing inside PDFs/images
