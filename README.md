@@ -46,6 +46,7 @@ Prototype capabilities and browser/platform support still require real-device te
 - `note-state-core.js` — state defaults, cloning, and normalization
 - `note-auth-core.js` — Supabase Google-auth adapter
 - `note-editor-core.js` — note draft, checklist, and label model helpers
+- `note-realtime-core.js` — account-scoped Realtime subscriptions for notes, folders, and labels
 - `vendor/` — locally bundled third-party browser dependencies
 - `tests/` — Node unit tests and Playwright browser integration tests
 - `docs/` — product vision, specification, and architecture
