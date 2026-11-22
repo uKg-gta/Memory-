@@ -17,6 +17,7 @@
   <script src="./note-storage.js"></script>
   <script src="./note-state-core.js"></script>
   <script src="./note-auth-core.js"></script>
+  <script src="./note-editor-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -2130,31 +2131,17 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         document.getElementById('add-link-bar').classList.add('hidden');
         document.getElementById('editor-more-menu').classList.add('hidden');
 
-        if (noteId) {
-          const existing = state.notes.find(n => n.id === noteId);
-          if (!existing) return;
-          editingNoteId = existing.id;
-          editorDraft = cloneData(existing);
-        } else {
-          editingNoteId = 'NEW';
-          const maxOrder = state.notes.reduce((m, n) => Math.max(m, n.order || 0), 0);
-          editorDraft = {
-            id: uid('n'),
-            title: '',
-            bodyHtml: '',
-            checklist: [],
-            attachments: [],
-            links: [],
-            colour: 'paper',
-            pinned: false,
-            order: maxOrder + 1,
-            folderId: currentView === 'folders' && activeFolderId && activeFolderId !== '__unfiled__' ? activeFolderId : '',
-            labelIds: currentView === 'labels' && activeLabelId ? [activeLabelId] : [],
-            archived: false,
-            trashed: false,
-            createdAt: Date.now()
-          };
-        }
+        const existing = noteId ? state.notes.find(n => n.id === noteId) : null;
+        if (noteId && !existing) return;
+        editingNoteId = noteId ? existing.id : 'NEW';
+        const maxOrder = state.notes.reduce((m, n) => Math.max(m, n.order || 0), 0);
+        editorDraft = MemoryNoteEditor.createDraft(existing, {
+          id: uid('n'),
+          order: maxOrder + 1,
+          folderId: currentView === 'folders' && activeFolderId && activeFolderId !== '__unfiled__' ? activeFolderId : '',
+          labelIds: currentView === 'labels' && activeLabelId ? [activeLabelId] : [],
+          createdAt: Date.now()
+        }, cloneData);
 
         const titleEl = document.getElementById('editor-title');
         const bodyEl = document.getElementById('editor-body');
@@ -2179,14 +2166,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         refreshIcons();
       }
 
-      function isDraftEmpty() {
-        const hasTitle = Boolean(editorDraft.title && editorDraft.title.trim());
-        const hasBody = Boolean(stripHtml(editorDraft.bodyHtml));
-        const hasCheck = (editorDraft.checklist || []).some(c => c.text && c.text.trim());
-        const hasAttach = (editorDraft.attachments || []).length > 0;
-        const hasLinks = (editorDraft.links || []).length > 0;
-        return !(hasTitle || hasBody || hasCheck || hasAttach || hasLinks);
-      }
+      function isDraftEmpty() { return MemoryNoteEditor.isDraftEmpty(editorDraft, stripHtml); }
 
       function persistEditorDraft() {
         if (!editorDraft || !canEditCloudData()) return;
@@ -2316,7 +2296,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           checkbox.addEventListener('change', () => {
             const target = editorDraft.checklist.find(c => c.id === cid);
             if (!target) return;
-            target.done = checkbox.checked;
+            editorDraft.checklist = MemoryNoteEditor.setChecklistDone(editorDraft.checklist, cid, checkbox.checked);
             // Completed items stay in their original position with strikethrough
             textInput.classList.toggle('checklist-done', target.done);
             scheduleAutoSave();
@@ -2325,7 +2305,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           textInput.addEventListener('input', () => {
             const target = editorDraft.checklist.find(c => c.id === cid);
             if (!target) return;
-            target.text = textInput.value;
+            editorDraft.checklist = MemoryNoteEditor.setChecklistText(editorDraft.checklist, cid, textInput.value);
             scheduleAutoSave();
           });
 
@@ -2337,7 +2317,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
           });
 
           rmBtn.addEventListener('click', () => {
-            editorDraft.checklist = editorDraft.checklist.filter(c => c.id !== cid);
+            editorDraft.checklist = MemoryNoteEditor.removeChecklistItem(editorDraft.checklist, cid);
             renderEditorChecklist();
             scheduleAutoSave();
           });
@@ -2349,7 +2329,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
       function addChecklistItem() {
         editorDraft.checklist = editorDraft.checklist || [];
         const newId = uid('c');
-        editorDraft.checklist.push({ id: newId, text: '', done: false });
+        editorDraft.checklist = MemoryNoteEditor.appendChecklistItem(editorDraft.checklist, newId);
         renderEditorChecklist();
         const input = document.querySelector(`[data-check-id="${newId}"] input[type="text"]`);
         if (input) input.focus();
@@ -2528,12 +2508,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         labelsWrap.querySelectorAll('[data-toggle-label]').forEach(btn => {
           btn.addEventListener('click', () => {
             const lid = btn.getAttribute('data-toggle-label');
-            editorDraft.labelIds = editorDraft.labelIds || [];
-            if (editorDraft.labelIds.includes(lid)) {
-              editorDraft.labelIds = editorDraft.labelIds.filter(x => x !== lid);
-            } else {
-              editorDraft.labelIds.push(lid);
-            }
+            editorDraft.labelIds = MemoryNoteEditor.toggleLabel(editorDraft.labelIds, lid);
             applyEditorVisuals();
             renderEditorMoreMenu();
             scheduleAutoSave();
