@@ -5,8 +5,8 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.MemoryAttachmentPolicy = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  // Supabase bucket and browser guard use the same 50 MiB per-file ceiling.
-  const MAX_FILE_BYTES = 50 * 1024 * 1024;
+  // Supabase bucket and browser guard use the same decimal 50 MB per-file ceiling.
+  const MAX_FILE_BYTES = 50_000_000;
   const MAX_FILE_LABEL = '50 MB';
 
   function validateFile(fileOrSize) {
