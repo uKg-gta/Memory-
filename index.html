@@ -798,7 +798,7 @@
 
       function saveState() {
         let snapshot;
-        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));const now=new Date().toISOString();snapshot.syncMeta=snapshot.syncMeta||{};for(const k of ['deletedNoteIds','deletedFolderIds','deletedLabelIds','deletedAttachmentIds'])snapshot.syncMeta[k]=snapshot.syncMeta[k]||[];const present=new Set(snapshot.notes.map(n=>n.id));for(const oldNote of (lastSavedState.notes||[])){if(!present.has(oldNote.id)&&!snapshot.syncMeta.deletedNoteIds.includes(oldNote.id))snapshot.syncMeta.deletedNoteIds.push(oldNote.id);const current=snapshot.notes.find(n=>n.id===oldNote.id);const currentAtt=new Set((current&&current.attachments||[]).map(a=>a.id));for(const att of (oldNote.attachments||[]))if(!currentAtt.has(att.id)&&!snapshot.syncMeta.deletedAttachmentIds.some(x=>x.noteId===oldNote.id&&x.attachmentId===att.id))snapshot.syncMeta.deletedAttachmentIds.push({noteId:oldNote.id,attachmentId:att.id});}for(const kind of ['folders','labels']){const before=new Map((lastSavedState[kind]||[]).map(x=>[x.id,x]));const after=new Set((snapshot[kind]||[]).map(x=>x.id));const tombKey=kind==='folders'?'deletedFolderIds':'deletedLabelIds';for(const x of (lastSavedState[kind]||[]))if(!after.has(x.id)&&!snapshot.syncMeta[tombKey].includes(x.id))snapshot.syncMeta[tombKey].push(x.id);for(const x of (snapshot[kind]||[])){const oldItem=before.get(x.id);if(oldItem&&JSON.stringify(oldItem)!==JSON.stringify(x))x.updatedAt=now;}}for(const n of snapshot.notes){const old=prev.get(n.id);if(old&&JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})){n.updatedAt=now;const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}state.syncMeta=snapshot.syncMeta;} }
+        try { snapshot = cloneData(state); if(lastSavedState&&!suppressDeleteDetection){const prev=new Map((lastSavedState.notes||[]).map(n=>[n.id,n]));const now=new Date().toISOString();snapshot.syncMeta=snapshot.syncMeta||{};for(const k of ['deletedNoteIds','deletedFolderIds','deletedLabelIds','deletedAttachmentIds'])snapshot.syncMeta[k]=snapshot.syncMeta[k]||[];const present=new Set(snapshot.notes.map(n=>n.id));for(const oldNote of (lastSavedState.notes||[])){if(!present.has(oldNote.id)&&!snapshot.syncMeta.deletedNoteIds.includes(oldNote.id))snapshot.syncMeta.deletedNoteIds.push(oldNote.id);const current=snapshot.notes.find(n=>n.id===oldNote.id);const currentAtt=new Set((current&&current.attachments||[]).map(a=>a.id));for(const att of (oldNote.attachments||[]))if(!currentAtt.has(att.id)&&!snapshot.syncMeta.deletedAttachmentIds.some(x=>x.noteId===oldNote.id&&x.attachmentId===att.id))snapshot.syncMeta.deletedAttachmentIds.push({noteId:oldNote.id,attachmentId:att.id});}for(const kind of ['folders','labels']){const before=new Map((lastSavedState[kind]||[]).map(x=>[x.id,x]));const after=new Set((snapshot[kind]||[]).map(x=>x.id));const tombKey=kind==='folders'?'deletedFolderIds':'deletedLabelIds';for(const x of (lastSavedState[kind]||[]))if(!after.has(x.id)&&!snapshot.syncMeta[tombKey].includes(x.id))snapshot.syncMeta[tombKey].push(x.id);for(const x of (snapshot[kind]||[])){const oldItem=before.get(x.id);if(oldItem&&JSON.stringify(oldItem)!==JSON.stringify(x))x.updatedAt=now;}}for(const n of snapshot.notes){const old=prev.get(n.id);if(!old||JSON.stringify({...old,attachments:undefined})!==JSON.stringify({...n,attachments:undefined})){n.updatedAt=now;const live=state.notes.find(x=>x.id===n.id);if(live)live.updatedAt=n.updatedAt;}}state.syncMeta=snapshot.syncMeta;} }
         catch (error) {
           console.error('Could not prepare data for IndexedDB:', error);
           showToast('Could not prepare local data for saving');
@@ -2250,9 +2250,9 @@
             </div>
             <div class="flex items-center gap-1 shrink-0">
               <button type="button" data-edit-link="${lk.id}" aria-label="Edit title for ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Edit displayed title"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-              <a href="${escapeHtml(lk.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(lk.title || lk.domain)} in a new tab" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Open website">
-                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-              </a>
+              <button type="button" data-open-link="${lk.id}" aria-label="Open ${escapeHtml(lk.title || lk.domain)} in Memory" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Open in Memory">
+                <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+              </button>
               <button type="button" data-remove-link="${lk.id}" aria-label="Remove ${escapeHtml(lk.title || lk.domain)}" class="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-main" title="Remove link">
                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
               </button>
@@ -2260,6 +2260,10 @@
           </div>
         `).join('');
 
+        list.querySelectorAll('[data-open-link]').forEach(btn => btn.addEventListener('click', () => {
+          const link = (editorDraft.links || []).find(l => l.id === btn.getAttribute('data-open-link'));
+          if (link) openWebLinkPreview(link);
+        }));
         list.querySelectorAll('[data-edit-link]').forEach(btn => btn.addEventListener('click', () => {
           const link = (editorDraft.links || []).find(l => l.id === btn.getAttribute('data-edit-link'));
           if (!link) return;
@@ -2310,6 +2314,19 @@
       }
 
       let previewObjectUrl = null;
+      function openWebLinkPreview(link) {
+        if (!link || !/^https?:\/\//i.test(link.url || '')) return;
+        previewReturnFocus = document.activeElement;
+        document.getElementById('file-preview-title').textContent = link.title || link.domain || 'Website';
+        document.getElementById('file-preview-download').classList.add('hidden');
+        const external = document.getElementById('file-preview-external');
+        external.href = link.url;
+        const body = document.getElementById('file-preview-body');
+        body.innerHTML = '<div class="w-full h-full flex flex-col"><p class="px-3 py-2 text-[11px] text-muted border-b border-muted">Website preview. Some websites block in-app viewing; use Open externally if the page does not load.</p><iframe title="Website preview" src="' + escapeHtml(link.url) + '" sandbox="allow-forms allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" class="flex-1 w-full border-0 bg-white"></iframe></div>';
+        document.getElementById('file-preview-overlay').classList.remove('hidden');
+        document.getElementById('file-preview-close').focus();
+      }
+
       function openAttachmentPreview(attachmentId) {
         const attachment = (editorDraft && editorDraft.attachments || []).find(a => a.id === attachmentId);
         if (!attachment) return;
@@ -2322,12 +2339,22 @@
         document.getElementById('file-preview-title').textContent = attachment.name;
         const download = document.getElementById('file-preview-download');
         download.href = previewObjectUrl; download.download = attachment.name;
+        download.classList.remove('hidden');
         const external = document.getElementById('file-preview-external'); external.href = previewObjectUrl;
         const body = document.getElementById('file-preview-body');
+        const extension = (attachment.name.split('.').pop() || '').toLowerCase();
         if (mime.startsWith('image/')) {
           body.innerHTML = `<img src="${previewObjectUrl}" alt="${escapeHtml(attachment.name)}" class="max-w-full max-h-full object-contain p-3" />`;
         } else if (mime === 'application/pdf' || attachment.type === 'PDF') {
           body.innerHTML = `<iframe title="${escapeHtml(attachment.name)}" src="${previewObjectUrl}" class="w-full h-full border-0 bg-white"></iframe>`;
+        } else if (mime === 'text/html' || ['html','htm'].includes(extension)) {
+          body.innerHTML = `<iframe title="${escapeHtml(attachment.name)}" src="${previewObjectUrl}" sandbox="allow-forms allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" class="w-full h-full border-0 bg-white"></iframe>`;
+        } else if (mime.startsWith('text/') || ['txt','md','csv','json','xml','js','css'].includes(extension)) {
+          blob.text().then(text => { if (previewObjectUrl) { body.innerHTML = '<pre class="w-full h-full overflow-auto p-4 text-xs whitespace-pre-wrap break-words text-main"></pre>'; body.querySelector('pre').textContent = text; } });
+        } else if (mime.startsWith('audio/')) {
+          body.innerHTML = `<audio controls class="w-full max-w-xl p-4" src="${previewObjectUrl}">Audio playback is not supported.</audio>`;
+        } else if (mime.startsWith('video/')) {
+          body.innerHTML = `<video controls playsinline class="max-w-full max-h-full" src="${previewObjectUrl}">Video playback is not supported.</video>`;
         } else {
           body.innerHTML = `<div class="p-8 text-center max-w-md"><i data-lucide="file" class="w-10 h-10 mx-auto mb-3 text-muted"></i><div class="text-sm font-medium">Preview isn't available for this file type.</div><div class="text-xs text-muted mt-2">Download the file or open it in another application.</div></div>`;
         }
@@ -2338,6 +2365,7 @@
       function closeAttachmentPreview() {
         document.getElementById('file-preview-overlay').classList.add('hidden');
         document.getElementById('file-preview-body').innerHTML = '';
+        document.getElementById('file-preview-download').classList.remove('hidden');
         if (previewReturnFocus && previewReturnFocus.focus) previewReturnFocus.focus();
         previewReturnFocus = null;
         if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
