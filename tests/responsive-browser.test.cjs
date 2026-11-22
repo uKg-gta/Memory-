@@ -47,6 +47,13 @@ for (const [engineName, engine] of Object.entries({ chromium, firefox, webkit })
       // asynchronous auth bootstrap re-applies its signed-out gate.
       await page.addStyleTag({ content: '#app { display: flex !important; } #auth-gate { display: none !important; }' });
       await page.evaluate(() => document.body.classList.remove('auth-locked'));
+      await page.waitForFunction(() => {
+        const header = document.querySelector('header');
+        const main = document.querySelector('#main-content');
+        return !!header && !!main &&
+          header.getBoundingClientRect().width > 0 &&
+          main.getBoundingClientRect().width > 0;
+      }, undefined, { timeout: 5000 });
 
       for (const theme of ['light', 'dark']) {
         await page.evaluate(value => document.documentElement.classList.toggle('dark', value === 'dark'), theme);
