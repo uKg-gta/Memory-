@@ -119,6 +119,8 @@ test('same-origin shell assets may be cached', async () => {
   assert.equal(worker.writes[2].key, 'https://app.example/note-storage.js');
   await dispatch(worker, { method: 'GET', mode: 'cors', url: 'https://app.example/note-state-core.js' });
   assert.equal(worker.writes[3].key, 'https://app.example/note-state-core.js');
+  await dispatch(worker, { method: 'GET', mode: 'cors', url: 'https://app.example/note-auth-core.js' });
+  assert.equal(worker.writes[4].key, 'https://app.example/note-auth-core.js');
 });
 
 test('404 and 500 navigation responses never replace the app shell', async () => {
@@ -136,7 +138,7 @@ test('404 and 500 navigation responses never replace the app shell', async () =>
 
 test('offline navigation falls back to the install-time app shell', async () => {
   const worker = createWorker(async () => { throw new Error('offline'); });
-  const shell = await worker.caches.open('memory-pwa-v26-shell');
+  const shell = await worker.caches.open('memory-pwa-v27-shell');
   await shell.put('./index.html', response('cached app shell'));
   const result = await dispatch(worker, {
     method: 'GET', mode: 'navigate',
