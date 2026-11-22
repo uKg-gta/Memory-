@@ -58,6 +58,7 @@ Required app-shell files include:
 - `note-storage.js`
 - `note-state-core.js`
 - `note-auth-core.js`
+- `note-editor-core.js`
 
 PWA installation and service workers require localhost or HTTPS. The service worker preserves an offline app shell and may cache only the exact external CDN URLs explicitly listed in its allowlist. Supabase API requests, Supabase Storage downloads/uploads, and all other non-allowlisted external requests must bypass Cache Storage.
 
@@ -71,6 +72,7 @@ The current vanilla-JavaScript entry point remains `index.html`; the following b
 - `note-storage.js` owns the IndexedDB open/read/write/delete lifecycle for account-keyed workspace snapshots.
 - `note-state-core.js` owns default state, structured cloning, and state normalization.
 - `note-sync-core.js` owns note/attachment fingerprints and deterministic local-versus-remote sync planning, including conflict classification.
+- `note-editor-core.js` owns note draft creation, empty-draft detection, checklist mutations, and label toggling.
 - `note-sanitizer.js` owns the DOMPurify HTML boundary.
 
 The CI workflow runs Node unit tests for state normalization, sync planning, and auth delegation, plus Playwright browser tests for IndexedDB persistence (including Blob attachments and account separation), service-worker caching, sanitization, and responsive layout. These tests validate isolated modules and browser infrastructure; they do **not** simulate a live Google OAuth provider or a real Supabase project. OAuth redirects, session expiry/refresh, real RLS enforcement, live concurrent edits, and full attachment transfer still require configured staging credentials and manual/acceptance testing.
