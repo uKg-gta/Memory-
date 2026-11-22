@@ -9,6 +9,7 @@ const SHELL_FILES = [
   './icon-512.png'
 ];
 const EXTERNAL_ASSETS = [
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
   'https://cdn.tailwindcss.com/3.4.17',
   'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'
