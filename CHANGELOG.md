@@ -1,3 +1,10 @@
+# 2026-11-22 — Cross-device concurrent-write protection
+
+- Replaced unconditional note upserts with optimistic compare-and-swap updates: an existing note is updated only if its cloud `updated_at` still matches the version fetched at sync start.
+- Concurrent writes from another device are detected instead of silently overwriting a newer cloud version; a follow-up sync is requested.
+- New notes use inserts with duplicate-ID handling.
+- Debounced Realtime notifications to coalesce bursts while preserving the 30-second fallback refresh.
+
 # 2026-11-22 — Prevent equal-timestamp sync loop
 
 - Fixed note merge comparison: a local note uploads only when its timestamp is strictly newer than the cloud version; equal timestamps now resolve to the cloud copy and do not cause repeated upserts or Realtime-triggered sync cycles.
