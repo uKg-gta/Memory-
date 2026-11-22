@@ -170,13 +170,16 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
 
 test('built-in attachment viewer previews browser-supported files in the app', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.doesNotMatch(html, /note-attachment-preview\\.js/);
-  assert.match(html, /const isPdf = mime === 'application\\/pdf'/);
-  assert.match(html, /new Blob\\(\\[blob\\], \\{ type: 'application\\/pdf' \\}\\)/);
-  assert.match(html, /frame\\.src = objectUrl/);
-  assert.match(html, /if \\(isPdf\\)/);
-  assert.match(html, /frame\\.setAttribute\\('sandbox', ''\\)/);
-  assert.match(html, /player\\.controls = true/);
-  assert.match(html, /generation !== previewGeneration/);
-  assert.match(html, /Preview isn't available for this file type/);
+  assert.equal(html.includes('note-attachment-preview.js'), false);
+  assert.ok(html.includes("const isPdf = mime === 'application/pdf'"));
+  assert.ok(html.includes("new Blob([blob], { type: 'application/pdf' })"));
+  assert.ok(html.includes('frame.src = objectUrl'));
+  assert.ok(html.includes('if (isPdf)'));
+  assert.ok(html.includes("frame.setAttribute('sandbox', '')"));
+  assert.ok(html.includes('player.controls = true'));
+  assert.ok(html.includes('generation !== previewGeneration'));
+  assert.ok(html.includes("Preview isn\\'t available for this file type."));
+  const pdfBranch = html.slice(html.indexOf('if (isPdf)'), html.indexOf("} else if (mime.startsWith('image/')"));
+  assert.ok(pdfBranch.includes('frame.src = objectUrl'));
+  assert.equal(pdfBranch.includes("setAttribute('sandbox'"), false);
 });
