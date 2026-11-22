@@ -62,7 +62,18 @@
       });
     }
 
-    return Object.freeze({ read, write });
+    async function remove(key) {
+      const db = await open();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).delete(key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error || new Error('Could not clear old local data.'));
+        tx.onabort = () => reject(tx.error || new Error('Local cleanup was interrupted.'));
+      });
+    }
+
+    return Object.freeze({ read, write, remove });
   }
 
   return Object.freeze({ create });
