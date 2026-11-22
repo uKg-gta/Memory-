@@ -23,5 +23,13 @@ jobs:
         run: npm install --no-save playwright@1.56.1
       - name: Install cross-browser engines
         run: npx playwright install --with-deps chromium firefox webkit
+      - name: Build production Tailwind CSS
+        run: npx --yes tailwindcss@3.4.17 -c tailwind.config.cjs -i ./src/tailwind.css -o ./tailwind.css --minify
+      - name: Verify generated note-grid utilities
+        run: |
+          grep -Fq '.grid{display:grid}' ./tailwind.css
+          grep -Fq '.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}' ./tailwind.css
+          grep -Fq '.sm\\:grid-cols-3' ./tailwind.css
+          grep -Fq '.lg\\:grid-cols-4' ./tailwind.css
       - name: Run service-worker and browser security tests
         run: node --test --test-concurrency=1 tests/service-worker.test.cjs tests/security-browser.test.cjs tests/responsive-browser.test.cjs tests/sync-core.test.cjs tests/storage-browser.test.cjs tests/state-core.test.cjs tests/auth-core.test.cjs tests/editor-core.test.cjs tests/realtime-core.test.cjs tests/attachment-policy.test.cjs tests/database-migrations.test.cjs tests/account-isolation.test.cjs tests/manual-sync.test.cjs tests/link-preview.test.cjs tests/preview-browser.test.cjs
