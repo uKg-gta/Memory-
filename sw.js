@@ -1,9 +1,10 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v20';
+const VERSION = 'memory-pwa-v21';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
   './index.html',
+  './tailwind.css',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
@@ -15,7 +16,6 @@ const SHELL_FILES = [
 // Keep URL strings synchronized with the script/style URLs used by the app.
 const EXTERNAL_ASSETS = new Set([
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
-  'https://cdn.tailwindcss.com/3.4.17',
   'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'
 ]);
