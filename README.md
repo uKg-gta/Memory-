@@ -40,7 +40,13 @@ Prototype capabilities and browser/platform support still require real-device te
 - `manifest.webmanifest` — installable PWA metadata
 - `sw.js` — service worker and offline caching
 - `icon-192.png`, `icon-512.png` — app icons
-- `vendor/` and `note-sanitizer.js` — locally bundled note HTML sanitization
+- `note-sanitizer.js` — HTML sanitization boundary
+- `note-sync-core.js` — deterministic note fingerprints and sync/conflict planning
+- `note-storage.js` — account-scoped IndexedDB persistence
+- `note-state-core.js` — state defaults, cloning, and normalization
+- `note-auth-core.js` — Supabase Google-auth adapter
+- `vendor/` — locally bundled third-party browser dependencies
+- `tests/` — Node unit tests and Playwright browser integration tests
 - `docs/` — product vision, specification, and architecture
 - `CHANGELOG.md` — chronological project changes
 
@@ -52,7 +58,7 @@ The individual application files are the working repository source. Any retained
 2. Verify authentication, cloud sync, conflict handling, and account isolation on real devices.
 3. Verify offline read-only access, app-shell recovery, and cache update behaviour.
 4. Verify attachment upload/download, preview, backup, and restore behaviour.
-5. Expand automated browser tests and improve maintainability before considering a framework migration.
+5. Continue expanding end-to-end acceptance coverage for live Supabase, OAuth redirects, session expiry, attachment transfers, and cross-device recovery. The extracted pure modules and IndexedDB adapter already have automated unit/browser tests; the complete application remains in a vanilla-JavaScript entry point.
 
 ## Technology
 
