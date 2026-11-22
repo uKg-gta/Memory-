@@ -2,6 +2,16 @@
 
 Changes are listed in chronological order, oldest first. The November 22, 2026 work was completed in a concentrated development session; the entries below share that calendar date because that is the date recorded in the repository history. Times are UTC where commit timestamps were verified.
 
+## 2026-11-22 — Testability and module boundaries
+
+- Extracted note sync fingerprints and deterministic local/remote conflict planning into `note-sync-core.js`.
+- Extracted account-scoped IndexedDB read/write/delete operations into `note-storage.js`.
+- Extracted state defaults, cloning, and normalization into `note-state-core.js`.
+- Extracted Supabase session/OAuth/sign-out delegation into `note-auth-core.js`.
+- Added unit tests for state normalization, sync planning, and auth delegation, plus browser integration tests for IndexedDB account isolation and Blob persistence.
+- Added the new modules to the service-worker app shell and CI test workflow.
+- Documented the limits of the automated coverage: live OAuth, Supabase RLS, concurrent project-backed sync, and complete attachment transfers still need staging/acceptance testing.
+
 ## Prototype foundation
 
 - Added the standalone HTML/CSS/JavaScript application and PWA shell.
