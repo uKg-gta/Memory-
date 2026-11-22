@@ -18,7 +18,7 @@ This document records the product decisions approved for the current direction. 
 
 - Full-screen on mobile; centred pop-up on tablet and desktop.
 - Optional title; writing can begin directly in the body.
-- Autosave while typing, visible save status, and Done to close.
+- Autosave while typing when signed in, online, and successfully synchronised; editing is disabled while offline or while sync is pending or failed.
 - Keep the current minimal Attachment, Add link, and More toolbar.
 - Basic formatting: bold, italic, underline, bulleted lists, numbered lists, and checklists.
 - Completed checklist items stay in place and show strikethrough.
@@ -70,14 +70,17 @@ This document records the product decisions approved for the current direction. 
 - Keep the search UI simple: no advanced filters.
 - Clearing search returns to the section that was open before searching.
 
-## Storage, offline, and backup
+## Data, offline access, and recovery
 
-- Use IndexedDB for all local application data, including notes, attachments, folders, labels, preferences, and organisation state.
-- Store actual attachment bytes, not metadata only.
-- Local data should survive refresh and app restart.
-- Build an installable PWA with offline app-shell support and local editing.
-- Export and restore a complete backup including notes, attachments, folders, labels, archive/trash state, and preferences.
-- Verify persistence, restore, and offline behaviour on real browsers/devices before calling the app production-ready.
+- Supabase is the authoritative source for account notes, folders, labels, note-label relationships, attachment metadata, and attachment binaries.
+- Google sign-in is required before account notes are displayed.
+- Use IndexedDB as a per-account cache for content already downloaded to the current device; it is not an independent source of truth.
+- Offline mode is read-only. Do not queue offline edits or upload divergent local changes.
+- The app remains read-only until the device is online and the latest cloud sync has completed successfully.
+- PWA app-shell access should remain available offline. Previously downloaded notes and attachment blobs may be viewed; content not downloaded to that device is unavailable offline.
+- Account data must remain isolated across users sharing the same browser profile.
+- Complete backup and restore should include notes, attachments, folders, labels, archive/trash state, and preferences. Validate backup data and test restore before describing it as production-ready.
+- Verify persistence, authentication, recovery, and offline behaviour on real browsers/devices before calling the app production-ready.
 
 ## Appearance and settings
 
@@ -91,8 +94,8 @@ This document records the product decisions approved for the current direction. 
 ## Account and cross-device sync
 
 - Google sign-in uses the dedicated Memory Supabase project only; do not connect to or modify LifeOS.
-- Keep IndexedDB as the local offline copy while syncing notes, folders, labels, label relationships, and attachment files to the signed-in account.
-- Isolate local workspaces by account on shared devices.
-- Use ownership-based RLS for every user-data table and a private Storage bucket with per-user object paths.
-- Preserve local data when cloud is empty or unavailable; reconcile changes by timestamps and propagate permanent deletions with tombstones.
-- Account sync, OAuth redirects, session refresh, offline recovery, attachments, and cross-device conflicts require real-browser acceptance tests before production release.
+- Use ownership-based RLS for every user-data table and a private Storage bucket for attachment files.
+- Use stable client IDs, paginated reads, deletion tombstones, and server-authoritative update versions.
+- Detect concurrent changes with compare-and-swap checks; preserve concurrent note edits as conflict copies instead of silently overwriting them.
+- Supabase Realtime currently provides prompt note-change notifications. Folder and label changes are detected by the periodic refresh fallback until their own subscriptions are implemented.
+- Sync, OAuth redirects, session refresh, offline recovery, attachment transfers, account reset, and cross-device conflicts require real-browser acceptance tests before production release.
