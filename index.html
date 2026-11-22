@@ -9,7 +9,7 @@
   <link rel="icon" href="./icon-192.png" type="image/png" />
   <title>Memory — Personal Notes</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js"></script>
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -502,27 +502,95 @@
       let authUser=null,authReady=false,syncStatus='idle',syncError='',syncInProgress=false,syncReady=false,lastSavedState=null,suppressDeleteDetection=false,syncTimer=null;
       function cloudNotePayload(n,userId){return {user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:new Date(n.updatedAt||n.createdAt||Date.now()).toISOString(),deleted_at:null};}
       function queueCloudSync(delay=900){if(!authUser||!supabaseClient||!syncReady)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCloudNotes(),delay);}
+      async function fetchAllRows(table, columns, userId) {
+        const all=[]; let from=0, pageSize=500;
+        while(true){const q=await supabaseClient.from(table).select(columns).eq('user_id',userId).range(from,from+pageSize-1);if(q.error)throw q.error;const batch=q.data||[];all.push(...batch);if(batch.length<pageSize)break;from+=pageSize;}
+        return all;
+      }
       async function syncCloudNotes(){
         if(!authUser||!supabaseClient||syncInProgress||!syncReady||!navigator.onLine)return;
         syncInProgress=true;syncStatus='syncing';syncError='';if(currentView==='settings')renderMain();
         try{
           const userId=authUser.id;
-          const q=await supabaseClient.from('notes').select('id,user_id,client_id,title,body_html,checklist,links,colour,pinned,sort_order,archived,trashed,created_at,updated_at,deleted_at').eq('user_id',userId);
-          if(q.error)throw q.error;
-          const rows=q.data||[],remote=new Map(rows.filter(r=>r.client_id).map(r=>[r.client_id,r])),local=new Map(state.notes.map(n=>[n.id,n])),merged=[],uploads=[];
-          const deletedIds=(state.syncMeta&&state.syncMeta.deletedNoteIds)||[];
-          if(deletedIds.length){const tombstone=new Date().toISOString();const del=await supabaseClient.from('notes').update({deleted_at:tombstone,updated_at:tombstone}).eq('user_id',userId).in('client_id',deletedIds);if(del.error)throw del.error;}
+          // Read cloud records first. Nothing on the cloud is deleted merely because this device is empty.
+          const [remoteFolders,remoteLabels,remoteNotes]=await Promise.all([
+            fetchAllRows('folders','id,user_id,client_id,name,created_at,updated_at,deleted_at',userId),
+            fetchAllRows('labels','id,user_id,client_id,name,colour,created_at,updated_at,deleted_at',userId),
+            fetchAllRows('notes','id,user_id,client_id,title,body_html,checklist,links,colour,pinned,sort_order,folder_id,archived,trashed,created_at,updated_at,deleted_at',userId)
+          ]);
+          const folderMap=new Map(remoteFolders.filter(x=>x.client_id).map(x=>[x.client_id,x]));
+          const labelMap=new Map(remoteLabels.filter(x=>x.client_id).map(x=>[x.client_id,x]));
+          const noteMap=new Map(remoteNotes.filter(x=>x.client_id).map(x=>[x.client_id,x]));
+          const uploadsFolders=[],uploadsLabels=[],uploadsNotes=[];
+          for(const f of state.folders){const r=folderMap.get(f.id);const payload={user_id:userId,client_id:f.id,name:f.name,updated_at:f.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsFolders.push(payload);}
+          for(const l of state.labels){const r=labelMap.get(l.id);const payload={user_id:userId,client_id:l.id,name:l.name,colour:l.colour||'olive',updated_at:l.updatedAt||new Date().toISOString(),deleted_at:null};if(!r||Date.parse(payload.updated_at)>Date.parse(r.updated_at||0))uploadsLabels.push(payload);}
+          if(uploadsFolders.length){const q=await supabaseClient.from('folders').upsert(uploadsFolders,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
+          if(uploadsLabels.length){const q=await supabaseClient.from('labels').upsert(uploadsLabels,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
+          const freshFolders=await fetchAllRows('folders','id,user_id,client_id,name,created_at,updated_at,deleted_at',userId);
+          const freshLabels=await fetchAllRows('labels','id,user_id,client_id,name,colour,created_at,updated_at,deleted_at',userId);
+          const folderByClient=new Map(freshFolders.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
+          const labelByClient=new Map(freshLabels.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
+          const folderByUuid=new Map(freshFolders.map(x=>[x.id,x]));
+          const localNoteById=new Map(state.notes.map(n=>[n.id,n]));
+          const merged=[],deletedIds=(state.syncMeta&&state.syncMeta.deletedNoteIds)||[];
+          if(deletedIds.length){const tombstone=new Date().toISOString();const q=await supabaseClient.from('notes').update({deleted_at:tombstone,updated_at:tombstone}).eq('user_id',userId).in('client_id',deletedIds);if(q.error)throw q.error;}
           for(const n of state.notes){
-            const r=remote.get(n.id);
-            if(!r){uploads.push(cloudNotePayload(n,userId));merged.push(n);continue;}
-            const lt=Date.parse(n.updatedAt||n.createdAt||0)||0,rt=Date.parse(r.updated_at||r.created_at||0)||0;
-            if(r.deleted_at&&Date.parse(r.deleted_at)>=lt)continue;
-            if(rt>lt)merged.push({id:n.id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:n.folderId||'',labelIds:n.labelIds||[],attachments:n.attachments||[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||n.createdAt||Date.now(),updatedAt:r.updated_at});
-            else{uploads.push(cloudNotePayload(n,userId));merged.push(n);}
+            const r=noteMap.get(n.id),localTime=Date.parse(n.updatedAt||n.createdAt||0)||0,remoteTime=r?(Date.parse(r.updated_at||r.created_at||0)||0):0;
+            if(r&&r.deleted_at&&Date.parse(r.deleted_at)>=localTime)continue;
+            const remoteFolder=r&&r.folder_id?folderByUuid.get(r.folder_id):null;
+            if(r&&remoteTime>localTime){
+              merged.push({id:n.id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:remoteFolder?remoteFolder.client_id:(n.folderId||''),labelIds:n.labelIds||[],attachments:n.attachments||[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||n.createdAt||Date.now(),updatedAt:r.updated_at});
+            }else{
+              const folder=folderByClient.get(n.folderId);
+              uploadsNotes.push({user_id:userId,client_id:n.id,title:n.title||'',body_html:n.bodyHtml||'',checklist:n.checklist||[],links:(n.links||[]).map(({id,title,url,domain,titleLocked})=>({id,title,url,domain,titleLocked})),colour:n.colour||'paper',pinned:!!n.pinned,sort_order:Number(n.order||0),folder_id:folder?folder.id:null,archived:!!n.archived,trashed:!!n.trashed,created_at:new Date(n.createdAt||Date.now()).toISOString(),updated_at:n.updatedAt||new Date().toISOString(),deleted_at:null});
+              merged.push(n);
+            }
           }
-          for(const r of rows)if(r.client_id&&!local.has(r.client_id)&&!r.deleted_at)merged.push({id:r.client_id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:'',labelIds:[],attachments:[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||Date.now(),updatedAt:r.updated_at});
-          if(uploads.length){const up=await supabaseClient.from('notes').upsert(uploads,{onConflict:'user_id,client_id'});if(up.error)throw up.error;}
-          suppressDeleteDetection=true;state.notes=merged;await saveState();suppressDeleteDetection=false;syncStatus='synced';
+          for(const r of remoteNotes){if(!r.client_id||localNoteById.has(r.client_id)||r.deleted_at)continue;const f=r.folder_id?folderByUuid.get(r.folder_id):null;merged.push({id:r.client_id,title:r.title||'',bodyHtml:r.body_html||'',checklist:r.checklist||[],links:r.links||[],colour:r.colour||'paper',pinned:!!r.pinned,order:Number(r.sort_order||0),folderId:f?f.client_id:'',labelIds:[],attachments:[],archived:!!r.archived,trashed:!!r.trashed,createdAt:Date.parse(r.created_at)||Date.now(),updatedAt:r.updated_at});}
+          if(uploadsNotes.length){const q=await supabaseClient.from('notes').upsert(uploadsNotes,{onConflict:'user_id,client_id'});if(q.error)throw q.error;}
+          const freshNotes=await fetchAllRows('notes','id,user_id,client_id,updated_at,deleted_at',userId);
+          const noteByClient=new Map(freshNotes.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
+          // Persist label relationships using stable local IDs alongside the database UUID foreign keys.
+          const relationRows=[];
+          for(const n of merged){const nr=noteByClient.get(n.id);if(!nr)continue;for(const lid of (n.labelIds||[])){const lr=labelByClient.get(lid);if(lr)relationRows.push({user_id:userId,note_id:nr.id,label_id:lr.id,note_client_id:n.id,label_client_id:lid});}}
+          if(relationRows.length){const q=await supabaseClient.from('note_labels').upsert(relationRows,{onConflict:'note_id,label_id'});if(q.error)throw q.error;}
+          // Bring cloud label links onto notes without replacing local-only links until remote records are available.
+          const rel=await supabaseClient.from('note_labels').select('note_id,label_id,note_client_id,label_client_id').eq('user_id',userId);
+          if(rel.error)throw rel.error;
+          const relByNote=new Map();for(const x of (rel.data||[])){const key=x.note_client_id||freshNotes.find(n=>n.id===x.note_id)?.client_id;const label=x.label_client_id||freshLabels.find(l=>l.id===x.label_id)?.client_id;if(key&&label){if(!relByNote.has(key))relByNote.set(key,[]);relByNote.get(key).push(label);}}
+          for(const n of merged){const cloudLabels=relByNote.get(n.id);if(cloudLabels)n.labelIds=Array.from(new Set([...(n.labelIds||[]),...cloudLabels]));}
+          // Attachment metadata and binary files. Local Blobs remain in IndexedDB; remote files download when absent locally.
+          const remoteAttachments=await fetchAllRows('attachments','id,user_id,note_id,client_id,storage_path,file_name,mime_type,size_bytes,created_at,deleted_at',userId);
+          const attachmentMap=new Map(remoteAttachments.filter(a=>a.client_id).map(a=>[a.client_id,a]));
+          const noteDbMap=new Map(freshNotes.filter(n=>n.client_id&&!n.deleted_at).map(n=>[n.client_id,n]));
+          for(const n of merged){
+            const nr=noteDbMap.get(n.id);if(!nr)continue;
+            n.attachments=Array.isArray(n.attachments)?n.attachments:[];
+            for(const att of n.attachments){
+              const path=userId+'/'+n.id+'/'+att.id;
+              const existing=attachmentMap.get(att.id);
+              const blob=att.blob||att.fileBlob;
+              if(blob instanceof Blob){
+                const up=await supabaseClient.storage.from('memory-attachments').upload(path,blob,{upsert:true,contentType:att.mimeType||blob.type||'application/octet-stream'});
+                if(up.error)throw up.error;
+                if(!existing||existing.deleted_at){const meta=await supabaseClient.from('attachments').upsert({user_id:userId,note_id:nr.id,client_id:att.id,storage_path:path,file_name:att.name||att.fileName||'Attachment',mime_type:att.mimeType||blob.type||'application/octet-stream',size_bytes:blob.size,deleted_at:null},{onConflict:'user_id,client_id'});if(meta.error)throw meta.error;}
+              }
+            }
+            for(const ra of remoteAttachments.filter(a=>a.note_id===nr.id&&!a.deleted_at)){
+              if(n.attachments.some(a=>a.id===ra.client_id))continue;
+              const download=await supabaseClient.storage.from('memory-attachments').download(ra.storage_path);
+              if(download.error)throw download.error;
+              n.attachments.push({id:ra.client_id||('a-'+ra.id),name:ra.file_name,type:(ra.file_name.split('.').pop()||'FILE').toUpperCase(),size:formatFileSize(ra.size_bytes),sizeBytes:Number(ra.size_bytes),mimeType:ra.mime_type,blob:download.data});
+            }
+          }
+          suppressDeleteDetection=true;state.notes=merged;
+          // Folders and labels are merged independently so their IDs remain stable across devices.
+          const remoteFolderByClient=new Map(freshFolders.filter(x=>x.client_id&&!x.deleted_at).map(x=>[x.client_id,x]));
+          const localFolderIds=new Set(state.folders.map(x=>x.id));
+          for(const r of freshFolders){if(r.client_id&&!r.deleted_at&&!localFolderIds.has(r.client_id))state.folders.push({id:r.client_id,name:r.name,updatedAt:r.updated_at});}
+          const localLabelIds=new Set(state.labels.map(x=>x.id));
+          for(const r of freshLabels){if(r.client_id&&!r.deleted_at&&!localLabelIds.has(r.client_id))state.labels.push({id:r.client_id,name:r.name,colour:r.colour||'olive',updatedAt:r.updated_at});}
+          await saveState();suppressDeleteDetection=false;syncStatus='synced';
         }catch(e){suppressDeleteDetection=false;console.error('Memory sync failed:',e);syncStatus='error';syncError=e.message||'Cloud sync failed';}
         finally{syncInProgress=false;if(currentView==='settings')renderMain();}
       }
