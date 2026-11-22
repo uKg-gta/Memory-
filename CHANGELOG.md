@@ -79,6 +79,14 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Added the new modules to the service-worker app shell and CI test workflow.
 - Documented the limits of the automated coverage: live OAuth, Supabase RLS, concurrent project-backed sync, and complete attachment transfers still need staging/acceptance testing.
 
+## 2026-11-22 — Realtime folder and label updates
+
+- Extended the account-scoped Supabase Realtime channel to listen for changes in notes, folders, and labels.
+- Routed all events through the existing authoritative cloud sync rather than trusting partial event payloads.
+- Added stale-callback protection and channel cleanup on account switching and sign-out.
+- Added connection status to account settings and retained the periodic visible-tab refresh as a fallback.
+- Added automated tests for subscription filters, event routing, account changes, stale callbacks, and cleanup.
+
 ## Verification notes
 
 - JavaScript syntax and selected static checks have been run during development.
