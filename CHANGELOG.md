@@ -10,6 +10,10 @@
 - Requires real-device verification for storage, attachment persistence, PWA installation, and offline behaviour.
 
 ## Unreleased
+- Made Google sign-in mandatory before Memory can display or edit notes; signed-out users now see a dedicated sign-in screen.
+- Removed the legacy signed-out IndexedDB workspace and old localStorage guest cache on startup. Account-specific workspaces and their offline copies remain intact.
+- Removed automatic migration of signed-out notes into the first Google account; each account now opens only its own workspace.
+- Bumped the PWA cache to v12 so installed copies receive the authentication gate and guest-data cleanup.
 - Added visible keyboard focus indicators, reduced-motion and forced-colour support, and semantic labels for key app controls.
 - Improved keyboard navigation, focus trapping/restoration, dialog semantics, and screen-reader status announcements for the editor, drawer, confirmations, and attachment preview.
 - Made note cards keyboard-operable and added accessible names to checklist and link controls.
