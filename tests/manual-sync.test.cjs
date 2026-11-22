@@ -5,15 +5,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
 test('cloud sync is manual after the initial signed-in sync', () => {
-  assert.doesNotMatch(html, /queueCloudSync\s*\(/);
+  assert.doesNotMatch(appSource, /queueCloudSync\s*\(/);
   assert.doesNotMatch(html, /setInterval\s*\(/);
   assert.doesNotMatch(html, /addEventListener\s*\(\s*['"]focus['"]/);
   assert.doesNotMatch(html, /visibilitychange/);
   assert.doesNotMatch(html, /onChange:\s*\(\)\s*=>\s*syncCloudNotes/);
-  assert.match(html, /onChange:\s*\(\)\s*=>\s*\{\s*cloudChangesAvailable\s*=\s*true/);
+  assert.match(appSource, /onChange:\s*\(\)\s*=>\s*\{\s*cloudChangesAvailable\s*=\s*true/);
 });
 
 test('manual sync controls are present in the app header and open editor', () => {
