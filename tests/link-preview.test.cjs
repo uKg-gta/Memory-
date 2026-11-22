@@ -33,7 +33,7 @@ test('HTTP is insecure while HTTPS is eligible for previews', () => {
 });
 
 test('rejects executable, data, blob, file, relative and credential-bearing URLs', () => {
-  for (const value of ['javascript:alert(1)', 'data:text/html,hello', 'blob:https://example.com/id', 'file:///tmp/file.pdf', '//evil.example/path', 'https://user:pass@example.com/secret']) {
+  for (const value of ['javascript:alert(1)', 'data:text/html,hello', 'blob:https://example.com/id', 'file:///tmp/file.pdf', 'ftp://example.com/file', '//evil.example/path', 'https://user:pass@example.com/secret', 'http://user:pass@example.com/secret']) {
     const result = classifyLink(value);
     assert.equal(result.kind, 'invalid', value);
     assert.equal(result.externalUrl, '', value);
@@ -50,7 +50,7 @@ test('YouTube watch, shorts, embed and short-host URLs use validated privacy-enh
 });
 
 test('invalid or injected YouTube IDs never enter an embed src', () => {
-  for (const url of ['https://www.youtube.com/watch?v=abc%22%3E%3Cscript%3E', 'https://www.youtube.com/watch?v=abcdefghij', 'https://youtu.be/abc%22%3E%3Cscript%3E']) {
+  for (const url of ['https://www.youtube.com/watch?v=abc%22%3E%3Cscript%3E', 'https://www.youtube.com/watch?v=abc\"><script>', 'https://www.youtube.com/watch?v=abcdefghij', 'https://youtu.be/abc%22%3E%3Cscript%3E']) {
     const result = classifyLink(url);
     assert.equal(result.kind, 'page');
     assert.doesNotMatch(result.src, /youtube-nocookie\.com\/embed/);
