@@ -128,7 +128,7 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
       }
       return { names, allKeys };
     });
-    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v34-shell'));
+    assert.ok(initialCache.names.some(name => name === 'memory-pwa-v35-shell'));
     const approvedExternal = new Set([
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
       'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
@@ -172,15 +172,16 @@ test('real Chromium service worker keeps API and error navigations out of Cache 
 test('built-in attachment viewer previews browser-supported files in the app', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.equal(html.includes('note-attachment-preview.js'), false);
-  assert.ok(html.includes("const isPdf = mime === 'application/pdf'"));
-  assert.ok(html.includes("new Blob([blob], { type: 'application/pdf' })"));
-  assert.ok(html.includes('frame.src = objectUrl'));
-  assert.ok(html.includes('if (isPdf)'));
-  assert.ok(html.includes("frame.setAttribute('sandbox', '')"));
-  assert.ok(html.includes('player.controls = true'));
-  assert.ok(html.includes('generation !== previewGeneration'));
-  assert.ok(html.includes("Preview isn\\'t available for this file type."));
-  const pdfBranch = html.slice(html.indexOf('if (isPdf)'), html.indexOf("} else if (mime.startsWith('image/')"));
+  const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(appSource.includes("const isPdf = mime === 'application/pdf'"));
+  assert.ok(appSource.includes("new Blob([blob], { type: 'application/pdf' })"));
+  assert.ok(appSource.includes('frame.src = objectUrl'));
+  assert.ok(appSource.includes('if (isPdf)'));
+  assert.ok(appSource.includes("frame.setAttribute('sandbox', '')"));
+  assert.ok(appSource.includes('player.controls = true'));
+  assert.ok(appSource.includes('generation !== previewGeneration'));
+  assert.ok(appSource.includes("Preview isn\\'t available for this file type."));
+  const pdfBranch = appSource.slice(appSource.indexOf('if (isPdf)'), appSource.indexOf("} else if (mime.startsWith('image/')"));
   assert.ok(pdfBranch.includes('frame.src = objectUrl'));
   assert.equal(pdfBranch.includes("setAttribute('sandbox'"), false);
 });
