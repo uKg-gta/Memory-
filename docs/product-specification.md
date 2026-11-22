@@ -88,7 +88,11 @@ This document records the product decisions approved for the current direction. 
 - Settings use one continuous simple list.
 - Keep the approved Modern Hearth palette and muted visual language.
 
-## Future phase
+## Account and cross-device sync
 
-- Add real sign-in and cross-device synchronisation using the separate Memory Supabase project only after the local-first app is complete and tested.
-- Do not connect to or modify the LifeOS Supabase project.
+- Google sign-in uses the dedicated Memory Supabase project only; do not connect to or modify LifeOS.
+- Keep IndexedDB as the local offline copy while syncing notes, folders, labels, label relationships, and attachment files to the signed-in account.
+- Isolate local workspaces by account on shared devices.
+- Use ownership-based RLS for every user-data table and a private Storage bucket with per-user object paths.
+- Preserve local data when cloud is empty or unavailable; reconcile changes by timestamps and propagate permanent deletions with tombstones.
+- Account sync, OAuth redirects, session refresh, offline recovery, attachments, and cross-device conflicts require real-browser acceptance tests before production release.
