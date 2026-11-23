@@ -16,11 +16,11 @@ const generatedCommand = [
   '-o'
 ];
 
-const NON_UTILITY_CLASSES = new Map([
-  ['group', 'Tailwind group marker used by group-* variants; the generated selector belongs to descendants.'],
-  ['dark', 'Theme-state marker toggled on the root element; dark:* variants generate the actual utility selectors.'],
-  ['drag-handle', 'Application drag-interaction hook; its appearance is defined by the custom stylesheet in index.html.'],
-  ['fmt-btn', 'Formatting-toolbar event hook; visual styling comes from the utility classes on the same button.']
+const NON_UTILITY_CLASSES = new Set([
+  'group', // Tailwind group marker used by group-* variants; generated selectors belong to descendants.
+  'dark', // Root theme-state marker used to activate dark:* variants.
+  'drag-handle', // Application drag-interaction hook; its custom styling is defined in index.html.
+  'fmt-btn' // Formatting-toolbar event hook; visual styling comes from the button's utility classes.
 ]);
 
 function sourceFiles() {
