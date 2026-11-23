@@ -1,0 +1,194 @@
+    :root {
+      --bg-main: #F4EFE5;
+      --bg-surface: #E5DDCB;
+      --bg-elevated: #FAF7F1;
+      --text-main: #493F32;
+      --text-muted: #7A6E5D;
+      --accent-olive: #778267;
+      --accent-olive-hover: #677258;
+      --accent-clay: #B77C60;
+      --accent-sand: #D8BFA5;
+      --border-muted: rgba(73, 63, 50, 0.14);
+      --border-strong: rgba(73, 63, 50, 0.24);
+      --shadow-card: 0 1px 3px rgba(73, 63, 50, 0.06), 0 1px 2px rgba(73, 63, 50, 0.04);
+      --shadow-modal: 0 18px 40px rgba(41, 43, 37, 0.16);
+
+      /* Approved 5 muted note colours (Light) */
+      --note-paper: #FAF7F0;
+      --note-oatmeal: #E5DDCB;
+      --note-sand: #E6D5C3;
+      --note-olive: #DCE1D4;
+      --note-clay: #E8D2C6;
+    }
+
+    html.dark {
+      --bg-main: #292B25;
+      --bg-surface: #32352D;
+      --bg-elevated: #363930;
+      --text-main: #ECE7DC;
+      --text-muted: #A9A294;
+      --accent-olive: #8A9679;
+      --accent-olive-hover: #9AA689;
+      --accent-clay: #C88C70;
+      --accent-sand: #8C7761;
+      --border-muted: rgba(236, 231, 220, 0.11);
+      --border-strong: rgba(236, 231, 220, 0.22);
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.22);
+      --shadow-modal: 0 20px 48px rgba(0, 0, 0, 0.45);
+
+      /* Approved 5 muted note colours (Dark) */
+      --note-paper: #34372F;
+      --note-oatmeal: #3E3D34;
+      --note-sand: #463D33;
+      --note-olive: #353E30;
+      --note-clay: #47362F;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+    :focus-visible { outline: 3px solid var(--accent-olive); outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+    @media (forced-colors: active) { :focus-visible { outline: 2px solid Highlight; } .note-card.is-selected { outline: 2px solid Highlight; } }
+
+    body.auth-locked #app { display: none !important; }
+    body.auth-locked #auth-gate { display: flex !important; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .bg-main { background-color: var(--bg-main); }
+    .bg-surface { background-color: var(--bg-surface); }
+    .bg-elevated { background-color: var(--bg-elevated); }
+    .text-main { color: var(--text-main); }
+    .text-muted { color: var(--text-muted); }
+    .border-muted { border-color: var(--border-muted); }
+    .border-strong { border-color: var(--border-strong); }
+
+    .note-bg-paper { background-color: var(--note-paper); }
+    .note-bg-oatmeal { background-color: var(--note-oatmeal); }
+    .note-bg-sand { background-color: var(--note-sand); }
+    .note-bg-olive { background-color: var(--note-olive); }
+    .note-bg-clay { background-color: var(--note-clay); }
+
+    .label-card { border-radius: 16px; border: 1px solid var(--border-muted); box-shadow: var(--shadow-card); }
+    .label-swatch { width: 17px; height: 17px; border-radius: 999px; border: 2px solid rgba(255,255,255,.75); box-shadow: 0 0 0 1px var(--border-muted); }
+    .label-card-actions button { min-width: 27px; min-height: 27px; }
+    .note-card {
+      height: 112px;
+      border-radius: 14px;
+      border: 1px solid var(--border-muted);
+      box-shadow: var(--shadow-card);
+      transition: border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .note-card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .note-card.is-selected {
+      border-color: var(--accent-olive);
+      box-shadow: 0 0 0 2px var(--accent-olive);
+    }
+
+    .note-card.is-dragging {
+      opacity: 0.45;
+    }
+
+    .note-card.drag-over {
+      border-color: var(--accent-olive);
+      box-shadow: 0 0 0 2px var(--accent-olive);
+    }
+
+    .drag-handle {
+      cursor: grab;
+      touch-action: none;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .btn-olive {
+      background-color: var(--accent-olive);
+      color: #FAF7F0;
+    }
+    .btn-olive:hover {
+      background-color: var(--accent-olive-hover);
+    }
+
+    .nav-item.active {
+      background-color: var(--bg-surface);
+      font-weight: 500;
+    }
+
+    .editor-content {
+      outline: none;
+      min-height: 200px;
+      line-height: 1.65;
+    }
+    .editor-content:empty::before {
+      content: attr(data-placeholder);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .editor-content ul {
+      list-style-type: disc;
+      padding-left: 1.35rem;
+      margin: 0.4rem 0;
+    }
+    .editor-content ol {
+      list-style-type: decimal;
+      padding-left: 1.35rem;
+      margin: 0.4rem 0;
+    }
+
+    .checklist-row input[type="checkbox"] {
+      accent-color: var(--accent-olive);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .checklist-done {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+    body.cloud-readonly #quick-capture-btn, body.cloud-readonly #new-folder-form, body.cloud-readonly #new-label-form, body.cloud-readonly #bulk-toolbar, body.cloud-readonly #editor-more-btn, body.cloud-readonly #formatting-bar, body.cloud-readonly #add-link-bar, body.cloud-readonly #reset-memory-btn, body.cloud-readonly #import-json-input, body.cloud-readonly [data-folder-menu], body.cloud-readonly [data-delete-label], body.cloud-readonly [data-edit-link], body.cloud-readonly [data-remove-link], body.cloud-readonly [data-remove-att], body.cloud-readonly .remove-check-btn { display: none !important; }
+    body.cloud-readonly .drag-handle { display: none !important; }
+
+    /* Subtle custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 9999px;
+    }
+      #editor-links-list [data-open-link]:focus-visible,
+    #attachment-menu [role="menuitem"]:focus-visible {
+      outline: 2px solid var(--text-main);
+      outline-offset: 2px;
+    }
+    #attachment-menu [role="menuitem"]:disabled { opacity: .45; cursor: not-allowed; }
