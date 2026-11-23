@@ -36,9 +36,9 @@ jobs:
           test -s ./tailwind.css
           grep -Fq '.grid{' ./tailwind.css
           grep -Fq '.grid-cols-2{' ./tailwind.css
-          grep -Fq '.md\\:flex{' ./tailwind.css
-          grep -Fq '.p-3\\.5{' ./tailwind.css
-          grep -Fq '.dark\\:bg-white' ./tailwind.css
+          grep -Fq '.md\:flex{' ./tailwind.css
+          grep -Fq '.p-3\.5{' ./tailwind.css
+          grep -Fq '.dark\:bg-white' ./tailwind.css
           echo "Generated stylesheet: $(wc -c < ./tailwind.css) bytes"
 
       - name: Commit compiled stylesheet

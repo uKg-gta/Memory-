@@ -385,7 +385,7 @@ test('Tailwind note grid, editor panel, and attachment menu retain their respons
         const style = getComputedStyle(element);
         return {
           display: style.display,
-          columns: style.gridTemplateColumns.split(/\\s+/).filter(Boolean).length
+          columns: style.gridTemplateColumns.split(/\s+/).filter(Boolean).length
         };
       });
       assert.equal(grid.display, 'grid', width + 'px: note board should use CSS grid');
@@ -405,6 +405,7 @@ test('Tailwind note grid, editor panel, and attachment menu retain their respons
     assert.ok(cardStyles.radius > 0, 'note card should have a visible border radius');
     assert.ok(cardStyles.borderWidth > 0 && cardStyles.borderStyle !== 'none', 'note card should retain its border');
 
+    await page.setViewportSize({ width: 1180, height: 900 });
     await page.evaluate(() => window.__memoryTest.openNote('layout-note-0'));
     const overlay = page.locator('#editor-overlay');
     await overlay.waitFor({ state: 'visible' });
