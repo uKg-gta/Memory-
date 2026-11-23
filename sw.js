@@ -1,5 +1,5 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v38';
+const VERSION = 'memory-pwa-v39';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
@@ -26,6 +26,7 @@ const SHELL_ASSETS = new Set(SHELL_FILES.map(path => new URL(path, self.registra
 const EXTERNAL_ASSETS = new Set([
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js',
   'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js',
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'
 ]);
 
