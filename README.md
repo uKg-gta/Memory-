@@ -74,6 +74,10 @@ The individual application files are the working repository source. Any retained
 - PWA manifest and service worker
 - Pinned external CDN assets
 
+## Styling
+
+Tailwind generates utilities only from classes it finds in `index.html`, `app.js`, and `note-*.js`. If a new source file contains Tailwind classes, add it to `content` in `tailwind.config.cjs`. The GitHub Action rebuilds `tailwind.css` on every push to `main` and verifies pull-request builds.
+
 ## Running locally
 
 The app should be served from **localhost or HTTPS** for service-worker registration and PWA installation. Opening `index.html` directly using `file://` is suitable only for a quick visual inspection.

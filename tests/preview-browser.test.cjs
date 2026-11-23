@@ -36,6 +36,8 @@ function createTestServer() {
           '  setEditorDraft: attachments => { document.body.classList.remove("auth-locked"); document.getElementById("auth-gate").classList.add("hidden"); editorDraft = { id: "test-note", title: "Test note", bodyHtml: "", checklist: [], links: [], attachments: attachments || [], colour: "paper", pinned: false, order: 1, folderId: "", labelIds: [], archived: false, trashed: false, createdAt: Date.now() }; state.notes = [editorDraft]; editingNoteId = editorDraft.id; document.getElementById("editor-title").value = editorDraft.title; document.getElementById("editor-body").textContent = ""; document.getElementById("editor-overlay").classList.remove("hidden"); renderEditorAttachments(); window.__memoryTest.setWritable(false); },',
           '  getAttachment: id => (editorDraft && editorDraft.attachments || []).find(item => item.id === id) || null,',
           '  closeEditor: () => closeEditor(),',
+          '  setNotes: notes => { state.notes = notes; currentView = "home"; activeFolderId = null; activeLabelId = null; searchQuery = ""; selectedIds.clear(); renderMain(); },',
+          '  openNote: id => openEditor(id),',
           '  isReady: () => authReady',
           '};',
           ''
@@ -337,6 +339,119 @@ test('attachment menu supports positioning, keyboard access, preview, download, 
     await page.evaluate(() => window.__memoryTest.closeEditor());
     assert.equal(await page.locator('#attachment-menu').count(), 0);
     assert.equal(await page.locator('#editor-overlay').evaluate(element => element.classList.contains('hidden')), true);
+  } finally {
+    if (app) await closeApp(app, browser);
+    else await browser.close();
+  }
+});
+
+
+test('Tailwind note grid, editor panel, and attachment menu retain their responsive styles', async () => {
+  const browser = await chromium.launch({ headless: true });
+  let app;
+  try {
+    app = await openApp(browser);
+    const page = app.page;
+    await page.evaluate(() => {
+      window.__memoryTest.setNotes(Array.from({ length: 6 }, (_, index) => ({
+        id: 'layout-note-' + index,
+        title: 'Layout note ' + (index + 1),
+        bodyHtml: '',
+        checklist: [],
+        links: [],
+        attachments: index === 0 ? [{
+          id: 'layout-attachment',
+          name: 'sample.pdf',
+          type: 'PDF',
+          size: '1 KB',
+          sizeBytes: 1024,
+          mimeType: 'application/pdf'
+        }] : [],
+        colour: 'paper',
+        pinned: false,
+        order: index + 1,
+        folderId: '',
+        labelIds: [],
+        archived: false,
+        trashed: false,
+        createdAt: Date.now() - index * 1000,
+        updatedAt: Date.now() - index * 1000
+      })));
+    });
+
+    for (const [width, expectedColumns] of [[1180, 4], [700, 3], [390, 2]]) {
+      await page.setViewportSize({ width, height: 900 });
+      const grid = await page.locator('#notes-grid').evaluate(element => {
+        const style = getComputedStyle(element);
+        return {
+          display: style.display,
+          columns: style.gridTemplateColumns.split(/\s+/).filter(Boolean).length
+        };
+      });
+      assert.equal(grid.display, 'grid', width + 'px: note board should use CSS grid');
+      assert.equal(grid.columns, expectedColumns, width + 'px: unexpected note-grid column count');
+    }
+
+    const cardStyles = await page.locator('[data-note-id="layout-note-0"]').evaluate(element => {
+      const style = getComputedStyle(element);
+      return {
+        padding: parseFloat(style.paddingTop),
+        radius: parseFloat(style.borderTopLeftRadius),
+        borderWidth: parseFloat(style.borderTopWidth),
+        borderStyle: style.borderTopStyle
+      };
+    });
+    assert.ok(cardStyles.padding > 0, 'note card should have non-zero padding');
+    assert.ok(cardStyles.radius > 0, 'note card should have a visible border radius');
+    assert.ok(cardStyles.borderWidth > 0 && cardStyles.borderStyle !== 'none', 'note card should retain its border');
+
+    await page.setViewportSize({ width: 1180, height: 900 });
+    await page.evaluate(() => window.__memoryTest.openNote('layout-note-0'));
+    const overlay = page.locator('#editor-overlay');
+    await overlay.waitFor({ state: 'visible' });
+    const editorStyles = await page.evaluate(() => {
+      const overlay = document.getElementById('editor-overlay');
+      const panel = document.getElementById('editor-panel');
+      const writingArea = panel.querySelector('.flex-1.overflow-y-auto');
+      const panelStyle = getComputedStyle(panel);
+      const overlayStyle = getComputedStyle(overlay);
+      const writingStyle = getComputedStyle(writingArea);
+      const rect = panel.getBoundingClientRect();
+      return {
+        visible: overlayStyle.display !== 'none' && overlayStyle.visibility !== 'hidden',
+        position: overlayStyle.position,
+        width: rect.width,
+        height: rect.height,
+        radius: parseFloat(panelStyle.borderTopLeftRadius),
+        writingPadding: parseFloat(writingStyle.paddingLeft) + parseFloat(writingStyle.paddingTop)
+      };
+    });
+    assert.equal(editorStyles.visible, true, 'editor overlay should be visible');
+    assert.equal(editorStyles.position, 'fixed', 'editor overlay should remain fixed to the viewport');
+    assert.ok(editorStyles.width > 0 && editorStyles.height > 0, 'editor panel should have a visible size');
+    assert.ok(editorStyles.radius > 0, 'desktop editor panel should retain its rounded corners');
+    assert.ok(editorStyles.writingPadding > 0, 'editor writing area should retain its padding');
+
+    await page.locator('[data-att-menu="layout-attachment"]').click();
+    const menu = page.locator('#attachment-menu');
+    await menu.waitFor({ state: 'visible' });
+    const menuStyles = await menu.evaluate(element => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        position: style.position,
+        padding: parseFloat(style.paddingTop) + parseFloat(style.paddingLeft),
+        radius: parseFloat(style.borderTopLeftRadius),
+        width: rect.width,
+        height: rect.height,
+        visibility: style.visibility
+      };
+    });
+    assert.equal(menuStyles.position, 'fixed', 'attachment menu should be positioned against the viewport');
+    assert.ok(menuStyles.padding > 0, 'attachment menu should retain its padding');
+    assert.ok(menuStyles.radius > 0, 'attachment menu should retain rounded corners');
+    assert.ok(menuStyles.width > 0 && menuStyles.height > 0, 'attachment menu should be visible');
+    assert.equal(menuStyles.visibility, 'visible');
   } finally {
     if (app) await closeApp(app, browser);
     else await browser.close();

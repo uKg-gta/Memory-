@@ -33,7 +33,7 @@ test('application and service worker both load and enforce the shared policy', (
   assert.doesNotMatch(html, /note-attachment-preview\.js/);
   assert.match(appSource, /MemoryAttachmentPolicy\.validateFile\(file\)/);
   assert.match(appSource, /MemoryAttachmentPolicy\.validateFile\(blob\)/);
-  assert.match(serviceWorker, /memory-pwa-v37/);
+  assert.match(serviceWorker, /memory-pwa-v38/);
   assert.match(serviceWorker, /\.\/note-attachment-policy\.js/);
   assert.doesNotMatch(serviceWorker, /note-attachment-preview\.js/);
 });

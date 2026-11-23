@@ -188,3 +188,11 @@ Changes are listed in chronological order, oldest first. The November 22, 2026 w
 - Made sync conflict-copy creation idempotent so a repeated reconciliation reuses an identical existing copy instead of creating another duplicate.
 - Bumped the service-worker cache to v37 so installed PWAs fetch the restored stylesheet and updated sync code.
 - Added regression tests for the responsive note grid and conflict-copy reuse.
+
+
+## 2026-11-23 — Tailwind coverage and PWA stylesheet refresh
+
+- Expanded Tailwind content scanning to `index.html`, `app.js`, and every root-level `note-*.js` module so runtime-rendered note grids and editor utilities are retained in the production build.
+- Added generated-stylesheet verification and pull-request builds; the workflow now checks essential grid, responsive, and spacing selectors before committing the compiled stylesheet.
+- Added a source-class coverage regression test and browser assertions for responsive note-card grids, editor layout, and attachment-menu styling.
+- Bumped the service-worker shell cache to v38; `tailwind.css` remains in `SHELL_FILES` so installed devices fetch the corrected stylesheet.
