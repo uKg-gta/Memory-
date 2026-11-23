@@ -4,6 +4,7 @@ run-name: Compile Tailwind CSS for main
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -11,15 +12,16 @@ permissions:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip tailwind build]') }}
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip tailwind build]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out main
+      - name: Check out target branch
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -32,8 +34,11 @@ jobs:
       - name: Verify generated stylesheet
         run: |
           test -s ./tailwind.css
-          grep -q '\.md\\:flex' ./tailwind.css
-          grep -q '\.dark\\:bg-white' ./tailwind.css || true
+          grep -Fq '.grid{' ./tailwind.css
+          grep -Fq '.grid-cols-2{' ./tailwind.css
+          grep -Fq '.md\\:flex{' ./tailwind.css
+          grep -Fq '.p-3\\.5{' ./tailwind.css
+          grep -Fq '.dark\\:bg-white' ./tailwind.css
           echo "Generated stylesheet: $(wc -c < ./tailwind.css) bytes"
 
       - name: Commit compiled stylesheet
@@ -45,5 +50,9 @@ jobs:
             echo "Compiled stylesheet is already current."
           else
             git commit -m "Build production Tailwind stylesheet [skip tailwind build]"
-            git push origin main
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              git push origin "HEAD:$GITHUB_HEAD_REF"
+            else
+              git push origin main
+            fi
           fi

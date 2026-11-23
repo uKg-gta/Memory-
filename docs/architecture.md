@@ -92,6 +92,10 @@ The current vanilla-JavaScript entry point is `index.html`, which loads the appl
 
 The CI workflow runs Node unit tests for state normalization, sync planning, auth delegation, and static database-migration regression checks, plus Playwright browser tests for IndexedDB persistence (including Blob attachments and account separation), service-worker caching, sanitization, and responsive layout. Static migration checks do not execute SQL against a live project. These tests validate isolated modules and browser infrastructure; they do **not** simulate a live Google OAuth provider or a real Supabase project. OAuth redirects, session expiry/refresh, real RLS enforcement, live concurrent edits, and full attachment transfer still require configured staging credentials and manual/acceptance testing.
 
+## Styling
+
+Tailwind scans `index.html`, `app.js`, and `note-*.js` to generate the production utilities. Any new source file containing Tailwind classes must be added to the `content` list in `tailwind.config.cjs`. The GitHub Action rebuilds `tailwind.css` on every push to `main` and verifies generated styles on pull requests.
+
 ## External link metadata
 
 Browser-side metadata fetching can fail when a target site does not allow cross-origin requests. The URL must be saved immediately regardless. Metadata retrieval should fail gracefully. Do not promise that every website title can be fetched automatically.
