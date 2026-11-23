@@ -153,7 +153,7 @@ test('404 and 500 navigation responses never replace the app shell', async () =>
 
 test('offline navigation falls back to the install-time app shell', async () => {
   const worker = createWorker(async () => { throw new Error('offline'); });
-  const shell = await worker.caches.open('memory-pwa-v38-shell');
+  const shell = await worker.caches.open('memory-pwa-v39-shell');
   await shell.put('./index.html', response('cached app shell'));
   const result = await dispatch(worker, {
     method: 'GET', mode: 'navigate',
@@ -163,7 +163,7 @@ test('offline navigation falls back to the install-time app shell', async () => 
 });
 
 
-test('service worker v38 precaches the generated Tailwind stylesheet', () => {
-  assert.match(workerSource, /const VERSION = 'memory-pwa-v38'/);
+test('service worker v39 precaches the generated Tailwind stylesheet', () => {
+  assert.match(workerSource, /const VERSION = 'memory-pwa-v39'/);
   assert.match(workerSource, /const SHELL_FILES = \[[\s\S]*?'\.\/tailwind\.css'/);
 });
