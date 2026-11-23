@@ -31,6 +31,7 @@ function createTestServer() {
           '',
           'window.__memoryTest = {',
           '  openLinkPreview: link => openLinkPreview(link),',
+          '  openAttachmentPreview: id => openAttachmentPreview(id),',
           '  closePreview: () => closeAttachmentPreview(),',
           '  setWritable: writable => { authUser = writable ? { id: "test-user" } : null; authReady = true; syncReady = !!writable; syncStatus = writable ? "synced" : "idle"; syncInProgress = false; syncStartedWritable = false; applyReadOnlyMode(); },',
           '  setEditorDraft: attachments => { document.body.classList.remove("auth-locked"); document.getElementById("auth-gate").classList.add("hidden"); editorDraft = { id: "test-note", title: "Test note", bodyHtml: "", checklist: [], links: [], attachments: attachments || [], colour: "paper", pinned: false, order: 1, folderId: "", labelIds: [], archived: false, trashed: false, createdAt: Date.now() }; state.notes = [editorDraft]; editingNoteId = editorDraft.id; document.getElementById("editor-title").value = editorDraft.title; document.getElementById("editor-body").textContent = ""; document.getElementById("editor-overlay").classList.remove("hidden"); renderEditorAttachments(); window.__memoryTest.setWritable(false); },',
@@ -65,7 +66,7 @@ async function openApp(browser) {
   await page.route('https://**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'cdn.jsdelivr.net') {
-      await route.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.supabase = { createClient: function () { return null; } };' });
+      await route.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.supabase = { createClient: function () { return null; } }; window.pdfjsLib = { getDocument: function () { return { promise: Promise.resolve({ numPages: 5, getPage: async function (n) { return { getViewport: function (o) { return { width: 600 * o.scale, height: 800 * o.scale }; }, render: function (o) { o.canvasContext.fillRect(0, 0, 1, 1); return { promise: Promise.resolve(), cancel: function () {} }; }, cleanup: function () {} }; }, destroy: async function () {} }), destroy: function () {} }; } };' });
     } else if (url.hostname === 'unpkg.com') {
       await route.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.lucide = { createIcons: function () {} };' });
     } else if (url.hostname === 'fonts.googleapis.com') {
@@ -452,6 +453,42 @@ test('Tailwind note grid, editor panel, and attachment menu retain their respons
     assert.ok(menuStyles.radius > 0, 'attachment menu should retain rounded corners');
     assert.ok(menuStyles.width > 0 && menuStyles.height > 0, 'attachment menu should be visible');
     assert.equal(menuStyles.visibility, 'visible');
+  } finally {
+    if (app) await closeApp(app, browser);
+    else await browser.close();
+  }
+});
+
+test('attached multi-page PDFs render every page in phone and iPad preview layouts', async () => {
+  const browser = await chromium.launch({ headless: true });
+  let app;
+  try {
+    app = await openApp(browser);
+    const page = app.page;
+    for (const viewport of [{ width: 360, height: 740 }, { width: 834, height: 1112 }]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => {
+        window.__memoryTest.setEditorDraft([{
+          id: 'multipage-pdf',
+          name: 'multi-page.pdf',
+          type: 'PDF',
+          size: '5 KB',
+          sizeBytes: 5120,
+          mimeType: 'application/pdf',
+          blob: new Blob(['fake PDF bytes'], { type: 'application/pdf' })
+        }]);
+        window.__memoryTest.openAttachmentPreview('multipage-pdf');
+      });
+      await page.waitForFunction(() => document.querySelectorAll('#file-preview-body [data-pdf-page]').length === 5);
+      await page.waitForFunction(() => document.querySelectorAll('#file-preview-body [data-pdf-page][data-rendered="true"]').length >= 1);
+      await page.locator('#file-preview-body').evaluate(element => { element.scrollTop = element.scrollHeight; });
+      await page.waitForFunction(() => document.querySelectorAll('#file-preview-body [data-pdf-page][data-rendered="true"]').length === 5);
+      assert.equal(await page.locator('#file-preview-body canvas').count(), 5);
+      assert.ok((await page.locator('#file-preview-body').innerText()).includes('5 pages'));
+      await page.locator('#file-preview-close').click();
+      await page.locator('#file-preview-overlay').waitFor({ state: 'hidden' });
+      assert.equal(await page.locator('#file-preview-body').locator('[data-pdf-page]').count(), 0);
+    }
   } finally {
     if (app) await closeApp(app, browser);
     else await browser.close();
