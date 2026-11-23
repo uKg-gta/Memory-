@@ -1,11 +1,12 @@
 /* Memory PWA service worker. Requires HTTPS or localhost. */
-const VERSION = 'memory-pwa-v38';
+const VERSION = 'memory-pwa-v39';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_FILES = [
   './index.html',
   './app.js',
   './tailwind.css',
+  './styles.css',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
