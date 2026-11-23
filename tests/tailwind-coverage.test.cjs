@@ -24,6 +24,7 @@ const NON_UTILITY_CLASSES = new Map([
 ]);
 
 function sourceFiles() {
+  // Keep this list aligned with tailwind.config.cjs; vendor/ and test fixtures are intentionally excluded.
   return [
     path.join(root, 'index.html'),
     path.join(root, 'app.js'),
