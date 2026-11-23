@@ -2474,6 +2474,114 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         document.getElementById('file-preview-close').focus();
       }
 
+      let previewPdfState = null;
+      async function renderPdfAttachment(blob, filename, body, generation, objectUrl) {
+        const status = document.createElement('div');
+        status.className = 'p-4 text-sm text-muted text-center';
+        status.textContent = 'Loading PDF…';
+        body.className = 'w-full h-full overflow-y-auto bg-surface';
+        body.replaceChildren(status);
+        try {
+          if (!window.pdfjsLib || typeof window.pdfjsLib.getDocument !== 'function') {
+            throw new Error('The PDF renderer is not available. Connect to the internet and reopen the preview.');
+          }
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          if (generation !== previewGeneration || previewObjectUrl !== objectUrl) return;
+          const loadingTask = window.pdfjsLib.getDocument({ data: bytes, disableWorker: true, isEvalSupported: false });
+          const pdf = await loadingTask.promise;
+          if (generation !== previewGeneration || previewObjectUrl !== objectUrl) { await pdf.destroy(); return; }
+          const state = { pdf, loadingTask, renderTasks: new Set(), observer: null, cancelled: false };
+          previewPdfState = state;
+          body.replaceChildren();
+          const pages = document.createElement('div');
+          pages.className = 'flex flex-col items-center gap-3 p-3';
+          pages.setAttribute('aria-label', 'PDF pages');
+          body.append(pages);
+          const renderPage = async (pageNumber, slot) => {
+            if (state.cancelled || slot.dataset.rendered === 'true' || slot.dataset.rendering === 'true') return;
+            slot.dataset.rendering = 'true';
+            try {
+              const page = await pdf.getPage(pageNumber);
+              if (state.cancelled || generation !== previewGeneration) return;
+              const base = page.getViewport({ scale: 1 });
+              const maxWidth = Math.max(240, body.clientWidth - 32);
+              const scale = Math.min(1.5, maxWidth / base.width);
+              const viewport = page.getViewport({ scale });
+              const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+              const canvas = document.createElement('canvas');
+              canvas.className = 'block max-w-full bg-white shadow-sm';
+              canvas.width = Math.ceil(viewport.width * outputScale);
+              canvas.height = Math.ceil(viewport.height * outputScale);
+              canvas.style.width = Math.ceil(viewport.width) + 'px';
+              canvas.style.height = Math.ceil(viewport.height) + 'px';
+              canvas.setAttribute('aria-label', 'Page ' + pageNumber + ' of ' + pdf.numPages);
+              slot.replaceChildren(canvas);
+              const context = canvas.getContext('2d', { alpha: false });
+              const task = page.render({ canvasContext: context, viewport, transform: outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0] });
+              state.renderTasks.add(task);
+              await task.promise;
+              state.renderTasks.delete(task);
+              slot.dataset.rendered = 'true';
+              page.cleanup();
+            } catch (error) {
+              if (!state.cancelled && error && error.name !== 'RenderingCancelledException') {
+                slot.textContent = 'Page ' + pageNumber + ' could not be rendered.';
+              }
+            } finally {
+              delete slot.dataset.rendering;
+            }
+          };
+          for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+            const slot = document.createElement('section');
+            slot.className = 'w-full flex justify-center min-h-24';
+            slot.dataset.pdfPage = String(pageNumber);
+            slot.setAttribute('aria-label', 'PDF page ' + pageNumber);
+            const placeholder = document.createElement('div');
+            placeholder.className = 'text-xs text-muted py-6';
+            placeholder.textContent = 'Page ' + pageNumber;
+            slot.append(placeholder);
+            pages.append(slot);
+          }
+          if ('IntersectionObserver' in window) {
+            state.observer = new IntersectionObserver(entries => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                  state.observer.unobserve(entry.target);
+                  renderPage(Number(entry.target.dataset.pdfPage), entry.target);
+                }
+              });
+            }, { root: body, rootMargin: '700px 0px' });
+            pages.querySelectorAll('[data-pdf-page]').forEach(slot => state.observer.observe(slot));
+          } else {
+            for (const slot of pages.querySelectorAll('[data-pdf-page]')) await renderPage(Number(slot.dataset.pdfPage), slot);
+          }
+          status.remove();
+          const heading = document.createElement('div');
+          heading.className = 'sticky top-0 z-10 px-3 py-2 text-xs text-muted text-center bg-surface/95';
+          heading.textContent = pdf.numPages + (pdf.numPages === 1 ? ' page' : ' pages');
+          body.prepend(heading);
+        } catch (error) {
+          if (generation !== previewGeneration || previewObjectUrl !== objectUrl) return;
+          const fallback = document.createElement('div');
+          fallback.className = 'p-6 text-center max-w-lg mx-auto';
+          const message = document.createElement('p');
+          message.className = 'text-sm text-main';
+          message.textContent = 'This PDF could not be previewed here. ' + (error && error.message ? error.message : 'Try opening it externally or downloading it.');
+          fallback.append(message);
+          body.replaceChildren(fallback);
+        }
+      }
+      function destroyPdfPreview() {
+        const state = previewPdfState;
+        previewPdfState = null;
+        if (!state) return;
+        state.cancelled = true;
+        if (state.observer) state.observer.disconnect();
+        state.renderTasks.forEach(task => { try { task.cancel(); } catch (_) {} });
+        try { state.loadingTask.destroy(); } catch (_) {}
+        try { state.pdf.destroy(); } catch (_) {}
+      }
+
       function openAttachmentPreview(attachmentId) {
         const attachment = (editorDraft && editorDraft.attachments || []).find(a => a.id === attachmentId);
         if (!attachment) return;
@@ -2507,14 +2615,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         body.replaceChildren();
 
         if (isPdf) {
-          // Keep the browser's native PDF viewer in an unsandboxed iframe.
-          // Sandboxing this frame disables the built-in PDF renderer in some browsers.
-          const frame = document.createElement('iframe');
-          frame.title = attachment.name;
-          frame.src = objectUrl;
-          frame.referrerPolicy = 'no-referrer';
-          frame.className = 'w-full h-full border-0 bg-white';
-          body.append(frame);
+          renderPdfAttachment(previewBlob, attachment.name, body, generation, objectUrl);
         } else if (mime.startsWith('image/')) {
           const image = document.createElement('img');
           image.src = objectUrl;
@@ -2568,6 +2669,7 @@ const deletedFolders=(state.syncMeta&&state.syncMeta.deletedFolderIds)||[],delet
         refreshIcons();
       }
       function closeAttachmentPreview() {
+        destroyPdfPreview();
         previewGeneration++;
         document.getElementById('file-preview-overlay').classList.add('hidden');
         document.getElementById('file-preview-body').replaceChildren();
